@@ -1,0 +1,118 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      bump:
+        type: choice
+        description: 'Version bump type'
+        options:
+          - none
+          - major
+          - minor
+          - patch
+          - build
+        default: 'none'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bump version
+        if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
+        run: ./.github/tools/version-bump.sh ${{ inputs.bump }}
+
+      - name: Sync version from tag
+        if: github.event_name == 'push'
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/}"
+          CURRENT_VERSION=$(grep '^version=' module.prop | cut -d'=' -f2)
+          if [[ "$TAG_VERSION" != "$CURRENT_VERSION" ]]; then
+            echo "Tag $TAG_VERSION doesn't match module.prop $CURRENT_VERSION, updating..."
+            VERSION_NUM=${TAG_VERSION#v}
+            IFS='.' read -r MAJOR MINOR PATCH BUILD <<< "$VERSION_NUM"
+            VERSION_CODE=$(printf "%02d%02d%02d%02d" "$MAJOR" "$MINOR" "$PATCH" "$BUILD")
+            sed -i "s/^version=.*/version=$TAG_VERSION/" module.prop
+            sed -i "s/^versionCode=.*/versionCode=$VERSION_CODE/" module.prop
+          fi
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version=' module.prop | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Check if it's a build release (last digit is not 0)
+          BUILD=$(echo "$VERSION" | cut -d'.' -f4)
+          if [ "$BUILD" != "0" ]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - name: Set up Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Build
+        env:
+          ANDROID_NDK_PATH: ${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin
+        run: ./.github/tools/build.sh
+
+      - name: Create Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Magisk Tailscaled ${{ steps.version.outputs.version }}
+          files: |
+            dist/*.zip
+            dist/tailscale_*.tgz
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          append_body: true
+          body: |
+            ## Downloads
+            - **Magisk-Tailscaled-${{ steps.version.outputs.version }}.zip** - Lightweight (downloads binaries on install)
+            - **Magisk-Tailscaled-${{ steps.version.outputs.version }}-full.zip** - Complete package (includes all binaries)
+            
+            ## Download Stats
+            ![GitHub Downloads](https://img.shields.io/github/downloads/TheWildJames/Magisk-Tailscaled/${{ steps.version.outputs.version }}/Magisk-Tailscaled-${{ steps.version.outputs.version }}.zip?style=flat&logo=docusign&logoColor=green&label=Lightweight)
+            ![GitHub Downloads](https://img.shields.io/github/downloads/TheWildJames/Magisk-Tailscaled/${{ steps.version.outputs.version }}/Magisk-Tailscaled-${{ steps.version.outputs.version }}-full.zip?style=flat&logo=docusign&logoColor=green&label=Full%20Package)
+
+      - name: Update JSON with release URLs
+        env:
+          ASSETS: ${{ steps.release.outputs.assets }}
+        run: |
+          ZIP_URL=$(echo '${{ steps.release.outputs.assets }}' | jq -r '.[] | select(.name | endswith(".zip") and (contains("-full") | not)) | .browser_download_url')
+          for json_file in update.json update-arm.json update-arm64.json; do
+            jq --arg url "$ZIP_URL" '.zipUrl = $url' "$json_file" > "${json_file}.tmp" && mv "${json_file}.tmp" "$json_file"
+          done
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add module.prop update*.json CHANGELOG.md
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Bump version to ${{ steps.version.outputs.version }}"
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              git push
+            fi
+          fi
