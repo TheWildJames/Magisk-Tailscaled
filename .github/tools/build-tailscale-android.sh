@@ -56,28 +56,18 @@ mkdir -p "$WORKDIR/src"
 tar -xzf "$WORKDIR/src.tar.gz" -C "$WORKDIR/src" --strip-components=1
 cd "$WORKDIR/src"
 
-# Enable the SSH feature on Android (official tailscale excludes it via
-# `linux && !android`). Matches anasfanani/tailscale-android-cli, whose
-# releases this module previously shipped.
-python3 - "$WORKDIR/src/feature/ssh/ssh.go" <<'EOF'
-import sys, pathlib
-p = pathlib.Path(sys.argv[1])
-s = p.read_text()
-old = "//go:build ((linux && !android) || (darwin && !ios) || freebsd || openbsd || plan9) && !ts_omit_ssh"
-new = "//go:build (linux || (darwin && !ios) || freebsd || openbsd || plan9) && !ts_omit_ssh"
-if old in s:
-    p.write_text(s.replace(old, new))
-    print("patched feature/ssh build constraint for android")
-else:
-    print("warning: feature/ssh build constraint not found (source layout changed?); building unpatched")
-EOF
+# NOTE: the ssh server feature is omitted on Android (official tailscale
+# excludes ssh/tailssh on android via `linux && !android`; the module does
+# not ship the mock `getent` it needs either). `tailscale ssh` client and
+# `tailscale up --ssh` advertising remain, the on-device SSH server does not.
 
 export GOFLAGS=-mod=mod
 export GOTOOLCHAIN=auto
 
-# Feature omissions copied from anasfanani/tailscale-android-cli scripts/android.sh
+# Feature omissions copied from anasfanani/tailscale-android-cli scripts/android.sh,
+# plus `ssh` (see NOTE above — ssh/tailssh is android-excluded upstream)
 TAGS=$(GOOS= GOARCH= go run ./cmd/featuretags \
-  --remove "aws,bird,tap,kube,completion,completion_scripts,wakeonlan,capture,systray,syspolicy,appconnectors,identityfederation,usermetrics,logtail,netlog,linuxdnsfight,tpm" \
+  --remove "aws,bird,tap,kube,completion,completion_scripts,wakeonlan,capture,systray,syspolicy,appconnectors,identityfederation,usermetrics,logtail,netlog,linuxdnsfight,tpm,ssh" \
   --add cli)
 echo "Build tags: $TAGS"
 
