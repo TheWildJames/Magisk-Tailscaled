@@ -1,3 +1,9 @@
+## v2.2.0.0
+
+- Added KernelSU **WebUI** (`webroot/index.html`): status dashboard, connect/disconnect toggle, tailnet device list, login URL flow, logout, daemon log viewer. Opens via the WebUI button in KernelSU Manager / MMRL.
+- Added **Action button** (`action.sh`): tap in KernelSU Manager to toggle Tailscale fully on/off (daemon start/stop + `tailscale up`/`down`); on first use it prints and opens a login URL.
+- Tested against KernelSU's `ksu.exec` JS bridge (async callback + legacy sync fallback).
+
 ## v2.1.0.0
 
 - Updated bundled tailscale binaries: 1.98.8 → 1.104.1 (built for Android from official tailscale v1.104.1 source: NDK cgo, feature-omitted slim build)

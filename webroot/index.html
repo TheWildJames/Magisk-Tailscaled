@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Magisk Tailscaled</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #171a21; --card2: #1d212b; --border: #2a2f3c;
+    --text: #e8eaf0; --muted: #9aa1b2; --accent: #4f8cff; --accent2: #3c6fd6;
+    --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 16px 14px 40px; max-width: 640px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .logo { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #4f8cff, #7c5cff); display: flex; align-items: center; justify-content: center; font-size: 22px; flex: none; }
+  header h1 { font-size: 19px; font-weight: 700; }
+  header .sub { color: var(--muted); font-size: 12.5px; }
+  .pill { margin-left: auto; padding: 5px 12px; border-radius: 99px; font-size: 12.5px; font-weight: 600; background: var(--card2); border: 1px solid var(--border); white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: rgba(52,211,153,.35); }
+  .pill.warn { color: var(--warn); border-color: rgba(251,191,36,.35); }
+  .pill.err { color: var(--err); border-color: rgba(248,113,113,.35); }
+  .pill.muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; }
+  .togglewrap { text-align: center; padding: 8px 0 4px; }
+  #toggle { width: 100%; padding: 15px 0; border: none; border-radius: 13px; font-size: 16.5px; font-weight: 700; color: #fff; background: var(--accent); cursor: pointer; transition: background .15s; }
+  #toggle:active { background: var(--accent2); }
+  #toggle.off { background: #3a4050; }
+  #toggle:disabled { opacity: .55; cursor: default; }
+  #stateinfo { margin-top: 10px; color: var(--muted); font-size: 13.5px; min-height: 18px; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 6.5px 0; }
+  .row .k { color: var(--muted); flex: none; }
+  .row .v { text-align: right; word-break: break-all; font-variant-numeric: tabular-nums; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; }
+  .kv .k { color: var(--muted); }
+  .kv .v { text-align: right; word-break: break-all; }
+  .peer { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--border); }
+  .peer:last-child { border-bottom: none; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #4b5563; flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 6px rgba(52,211,153,.6); }
+  .peer .name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .peer .meta { color: var(--muted); font-size: 12px; margin-top: 1px; }
+  .peer .ips { margin-left: auto; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--accent); border: 1px solid rgba(79,140,255,.4); border-radius: 5px; padding: 1px 5px; margin-left: 6px; vertical-align: 1px; }
+  .btnrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn { flex: 1; min-width: 110px; padding: 10px 0; border-radius: 10px; border: 1px solid var(--border); background: var(--card2); color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .btn:active { background: #262b38; }
+  .btn.danger { color: var(--err); border-color: rgba(248,113,113,.3); }
+  .btn:disabled { opacity: .5; }
+  #loginbox { display: none; text-align: center; }
+  #loginbox .url { margin: 12px 0; padding: 12px; background: var(--card2); border: 1px dashed var(--border); border-radius: 10px; font-size: 13px; word-break: break-all; }
+  #loginbox a { color: var(--accent); text-decoration: none; }
+  .health li { color: var(--warn); font-size: 13.5px; margin: 4px 0 4px 18px; }
+  pre { background: #0a0c10; border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 11.5px; line-height: 1.5; overflow-x: auto; white-space: pre-wrap; color: #b7c0d4; max-height: 300px; overflow-y: auto; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13.5px; font-weight: 600; padding: 2px 0; outline: none; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; }
+  #nomanager { display: none; text-align: center; padding: 60px 20px; }
+  #nomanager h2 { margin-bottom: 10px; }
+  #nomanager p { color: var(--muted); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="nomanager">
+  <h2>Open from KernelSU Manager</h2>
+  <p>This WebUI needs the KernelSU JavaScript bridge.<br>Install the module, then open it via the <b>WebUI</b> button in KernelSU / MMRL.</p>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <div class="logo">⚡</div>
+    <div>
+      <h1>Magisk Tailscaled</h1>
+      <div class="sub" id="hsub">status…</div>
+    </div>
+    <span class="pill muted" id="pill">…</span>
+  </header>
+
+  <div class="card">
+    <div class="togglewrap">
+      <button id="toggle" disabled>…</button>
+      <div id="stateinfo"></div>
+    </div>
+    <div id="loginbox">
+      <div class="url" id="loginurl"></div>
+      <div class="btnrow">
+        <button class="btn" id="openurl">Open in browser</button>
+        <button class="btn" id="copyurl">Copy URL</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="devcard">
+    <h2>This device</h2>
+    <div class="kv" id="devinfo"><div class="k">…</div></div>
+    <div class="btnrow">
+      <button class="btn danger" id="logout">Logout</button>
+    </div>
+  </div>
+
+  <div class="card" id="peerscard">
+    <h2>Devices <span id="peercount" style="text-transform:none"></span></h2>
+    <div id="peers"></div>
+  </div>
+
+  <div class="card hidden" id="healthcard">
+    <h2>Health</h2>
+    <ul class="health" id="healthlist"></ul>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Daemon log (last 40 lines)</summary>
+      <div class="btnrow"><button class="btn" id="refreshlog">Refresh log</button></div>
+      <pre id="logview">—</pre>
+    </details>
+  </div>
+
+  <footer id="foot">Magisk Tailscaled · Tailscale <span id="tsver">?</span></footer>
+</div>
+
+<script>
+'use strict';
+var ENV = 'export PATH=/data/adb/tailscale/bin:/data/adb/tailscale/scripts:/data/adb/magisk:/data/adb/ksu/bin:$PATH; export HOME=/data/adb/tailscale; ';
+var SERVICE = '/data/adb/tailscale/scripts/tailscaled.service';
+
+/* ---------- KernelSU bridge ----------
+   Manager (verified in tiann/KernelSU WebViewInterface.kt):
+     ksu.exec(cmd)                      -> String            (sync, stdout)
+     ksu.exec(cmd, opts, callbackFunc)  -> async, cb(errno, stdout, stderr)
+     ksu.toast(msg)
+   Fallbacks cover older/MMRL-style bridges and missing callbacks. */
+var cbCounter = 0;
+function exec(cmd, timeoutMs) {
+  timeoutMs = timeoutMs || 20000;
+  return new Promise(function (resolve) {
+    if (typeof ksu === 'undefined' || !ksu.exec) {
+      resolve({ errno: -1, stdout: '', stderr: 'no ksu bridge' });
+      return;
+    }
+    var settled = false;
+    var done = function (r) { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } };
+    var cbName = '__tscb_' + (++cbCounter);
+    window[cbName] = function (errno, stdout, stderr) {
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      done({ errno: errno || 0, stdout: stdout || '', stderr: stderr || '' });
+    };
+    var timer = setTimeout(function () {
+      // manager never called back; resolve empty (never re-run long commands)
+      try { delete window[cbName]; } catch (e) {}
+      done({ errno: -1, stdout: '', stderr: 'exec timeout' });
+    }, timeoutMs);
+    try { ksu.exec(cmd, '{}', cbName); }
+    catch (e) {
+      try { done({ errno: 0, stdout: String(ksu.exec(cmd) || ''), stderr: '' }); }
+      catch (e2) { done({ errno: -1, stdout: '', stderr: String(e2) }); }
+      try { delete window[cbName]; } catch (e2) {}
+    }
+  });
+}
+function toast(msg) { try { if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast(String(msg)); } catch (e) {} }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+function ip(p) { return (p && p.TailscaleIPs && p.TailscaleIPs[0]) || ''; }
+
+/* ---------- state ---------- */
+var latest = null;      // parsed tailscale status --json (null = daemon down)
+var daemonUp = false;
+var busy = false;
+var versionStr = '';
+
+var STATE_LABEL = {
+  Running: ['Connected', 'ok'],
+  Starting: ['Starting…', 'warn'],
+  NeedsLogin: ['Login required', 'warn'],
+  NeedsMachineAuth: ['Machine auth', 'warn'],
+  Stopped: ['Disconnected', 'err'],
+  NoState: ['No state', 'muted']
+};
+
+/* ---------- render ---------- */
+function setPill(text, cls) {
+  var p = document.getElementById('pill');
+  p.textContent = text;
+  p.className = 'pill ' + cls;
+}
+function fmtState(backend) {
+  var s = STATE_LABEL[backend] || [backend || 'Unknown', 'muted'];
+  return { label: s[0], cls: s[1] };
+}
+function render() {
+  var st = latest;
+  var backend = st ? (st.BackendState || 'NoState') : null;
+  var f = fmtState(backend);
+  var t = document.getElementById('toggle');
+  var on = backend === 'Running';
+
+  setPill(f.label, f.cls);
+  t.disabled = busy;
+  if (busy) { t.textContent = 'Working…'; t.className = ''; }
+  else {
+    t.textContent = on ? 'Disconnect Tailscale' : (daemonUp ? 'Connect Tailscale' : 'Start Tailscale');
+    t.className = on ? '' : 'off';
+  }
+
+  var info = document.getElementById('stateinfo');
+  if (!daemonUp) info.textContent = 'tailscaled daemon is not running';
+  else if (!on) info.textContent = 'Daemon running · backend: ' + f.label.toLowerCase();
+  else info.textContent = '';
+
+  // login box
+  var lb = document.getElementById('loginbox');
+  lb.style.display = (daemonUp && backend === 'NeedsLogin') ? '' : 'none';
+
+  // header sub
+  document.getElementById('hsub').textContent = daemonUp
+    ? ('tailscaled running · Tailscale ' + (versionStr || '?'))
+    : 'tailscaled stopped';
+
+  // device card
+  var dev = document.getElementById('devinfo');
+  if (!daemonUp) {
+    dev.innerHTML = '<div class="k" style="grid-column:1/3">Daemon stopped — start it to see device info.</div>';
+  } else if (st && st.Self) {
+    var s = st.Self, exit = st.ExitNodeStatus;
+    var exTxt = exit ? ((exit.TailscaleIPs && exit.TailscaleIPs[0]) || 'in use') : 'none';
+    dev.innerHTML =
+      row('Host name', s.HostName) +
+      row('Tailscale IPv4', (s.TailscaleIPs && s.TailscaleIPs[0]) || '—') +
+      row('Tailscale IPv6', (s.TailscaleIPs && s.TailscaleIPs[1]) || '—') +
+      row('Exit node', exTxt) +
+      row('OS', s.OS || '—') +
+      row('Backend', backend);
+    document.getElementById('devcard').classList.remove('hidden');
+  } else {
+    dev.innerHTML = '<div class="k" style="grid-column:1/3">Waiting for daemon…</div>';
+  }
+
+  // peers
+  var pc = document.getElementById('peers');
+  if (daemonUp && st && st.Peer) {
+    var peers = Object.keys(st.Peer).map(function (k) { return st.Peer[k]; });
+    peers.sort(function (a, b) { return (b.Online === true) - (a.Online === true) || String(a.HostName).localeCompare(String(b.HostName)); });
+    document.getElementById('peercount').textContent = '(' + peers.length + ')';
+    pc.innerHTML = peers.length ? peers.map(function (p) {
+      var meta = [];
+      if (p.ExitNode) meta.push('exit node');
+      if (p.ExitNodeOption) meta.push('exit node option');
+      if (p.Tags && p.Tags.length) meta.push('tagged');
+      if (p.LastSeen && !p.Online) meta.push('last seen ' + String(p.LastSeen).replace('T', ' ').slice(0, 16));
+      return '<div class="peer">' +
+        '<span class="dot' + (p.Online ? ' on' : '') + '"></span>' +
+        '<span><span class="name">' + esc(p.HostName || p.ID || '?') + (p.ExitNode ? '<span class="tag">EXIT</span>' : '') + '</span>' +
+        (meta.length ? '<div class="meta">' + esc(meta.join(' · ')) + '</div>' : '') + '</span>' +
+        '<span class="ips">' + esc(ip(p)) + '</span></div>';
+    }).join('') : '<div class="row"><span class="k">No other devices in your tailnet</span></div>';
+    document.getElementById('peerscard').classList.remove('hidden');
+  } else {
+    pc.innerHTML = '';
+    document.getElementById('peerscard').classList.add('hidden');
+  }
+
+  // health
+  var hc = document.getElementById('healthcard');
+  if (daemonUp && st && st.Health && st.Health.length) {
+    document.getElementById('healthlist').innerHTML = st.Health.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('');
+    hc.classList.remove('hidden');
+  } else hc.classList.add('hidden');
+
+  document.getElementById('tsver').textContent = versionStr || '?';
+}
+function row(k, v) { return '<div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div>'; }
+
+/* ---------- data ---------- */
+function refresh() {
+  return exec(ENV + 'busybox pgrep -f tailscaled >/dev/null 2>&1 && echo UP || echo DOWN')
+    .then(function (r) { daemonUp = (r.stdout.trim() === 'UP'); })
+    .then(function () {
+      if (!daemonUp) { latest = null; render(); return; }
+      return exec(ENV + 'tailscale status --json 2>/dev/null', 15000).then(function (r) {
+        if (r.errno === 0 && r.stdout.trim()) {
+          try { latest = JSON.parse(r.stdout); }
+          catch (e) { latest = null; }
+        } else latest = null;
+        if (!versionStr) loadVersion();
+        render();
+        var needsLogin = !!(latest && latest.BackendState === 'NeedsLogin');
+        if (needsLogin && !loginUrl && !loginPending) startLogin(true);
+      });
+    })
+    .catch(function () { render(); });
+}
+function loadVersion() {
+  exec(ENV + 'tailscale version 2>/dev/null | head -1').then(function (r) {
+    versionStr = r.stdout.trim() || '?';
+    document.getElementById('tsver').textContent = versionStr;
+  });
+}
+
+/* ---------- actions ---------- */
+function toggle() {
+  if (busy) return;
+  busy = true; render();
+  var on = latest && latest.BackendState === 'Running';
+  var cmd;
+  if (on) {
+    cmd = ENV + 'tailscale down >/dev/null 2>&1; ' + SERVICE + ' stop; echo TOGGLED_OFF=$?';
+  } else {
+    cmd = ENV + SERVICE + ' start; sleep 2; timeout 8 tailscale up >/dev/null 2>&1; echo TOGGLED_ON=$?';
+  }
+  exec(cmd, 60000).then(function (r) {
+    busy = false;
+    if (/\b(?:TOGGLED_OFF|TOGGLED_ON)=1\b/.test(r.stdout + r.stderr)) {
+      toast('Action failed — check the daemon log');
+    } else toast(on ? 'Tailscale stopped' : 'Tailscale started');
+    // if starting fresh & needs login, surface URL
+    if (!on) maybeNeedsLogin();
+    refresh();
+  });
+}
+function maybeNeedsLogin() {
+  exec(ENV + 'tailscale status --json 2>/dev/null', 15000).then(function (r) {
+    var st = null;
+    try { st = JSON.parse(r.stdout); } catch (e) {}
+    if (st && st.BackendState === 'NeedsLogin') startLogin(true);
+  });
+}
+var loginUrl = '';
+var loginPending = false;
+function startLogin(quiet) {
+  if (busy || loginPending) return;
+  loginPending = true;
+  busy = true; render();
+  document.getElementById('loginurl').innerHTML = 'Generating login URL…';
+  exec(ENV + "timeout 12 tailscale login 2>&1 | grep -o 'https://login.tailscale.com/[a-zA-Z/0-9]*' | tail -1", 25000)
+    .then(function (r) {
+      busy = false;
+      loginPending = false;
+      loginUrl = r.stdout.trim();
+      var box = document.getElementById('loginurl');
+      if (loginUrl) {
+        box.innerHTML = '<a href="' + esc(loginUrl) + '" target="_blank" rel="noopener">' + esc(loginUrl) + '</a>';
+        if (!quiet) toast('Login URL ready');
+      } else {
+        box.textContent = 'Could not get a login URL. Run: su -c tailscale login';
+      }
+      refresh();
+    });
+}
+function openLoginUrl() {
+  if (!loginUrl) return;
+  exec(ENV + 'am start -a android.intent.action.VIEW -d "' + loginUrl + '" >/dev/null 2>&1; echo OPENED');
+  toast('Opening browser…');
+}
+function copyLoginUrl() {
+  if (!loginUrl) return;
+  try {
+    navigator.clipboard.writeText(loginUrl).then(function () { toast('URL copied'); },
+      function () { toast(loginUrl); });
+  } catch (e) { toast('Copy failed'); }
+}
+function doLogout() {
+  if (busy) return;
+  if (!confirm('Log out of Tailscale? You will need to log in again to reconnect.')) return;
+  busy = true; render();
+  exec(ENV + 'tailscale logout 2>&1; echo LOGOUT=$?', 30000).then(function (r) {
+    busy = false;
+    toast(/LOGOUT=0/.test(r.stdout) ? 'Logged out' : 'Logout issue — see log');
+    refresh();
+  });
+}
+function loadLog() {
+  exec(ENV + 'tail -n 40 /data/adb/tailscale/run/tailscaled.log 2>/dev/null || echo "(no daemon log)"')
+    .then(function (r) { document.getElementById('logview').textContent = r.stdout.trim() || '(empty)'; });
+}
+
+/* ---------- boot ---------- */
+document.getElementById('toggle').addEventListener('click', toggle);
+document.getElementById('logout').addEventListener('click', doLogout);
+document.getElementById('openurl').addEventListener('click', openLoginUrl);
+document.getElementById('copyurl').addEventListener('click', copyLoginUrl);
+document.getElementById('refreshlog').addEventListener('click', loadLog);
+document.querySelector('#logview').parentNode.addEventListener('toggle', function (e) {
+  if (e.target.open) loadLog();
+});
+
+var pollTimer = null;
+function startPolling() {
+  if (pollTimer) return;
+  refresh();
+  pollTimer = setInterval(function () {
+    if (document.visibilityState === 'visible') refresh();
+  }, 5000);
+}
+
+if (typeof ksu === 'undefined') {
+  if (location.search.indexOf('mock') === -1) {
+    document.getElementById('nomanager').style.display = '';
+  } else {
+    // ?mock=1 — preview in a plain browser with fixture data
+    window.ksu = {
+      exec: function (cmd, opts, cb) {
+        var out = '';
+        if (/pgrep/.test(cmd)) out = 'UP';
+        else if (/status --json/.test(cmd)) out = JSON.stringify(MOCK_STATUS);
+        else if (/tailscale version/.test(cmd)) out = '1.104.1\n';
+        else if (/login/.test(cmd)) out = 'https://login.tailscale.com/a/1234567890abcdef\n';
+        else if (/tail/.test(cmd)) out = 'mock log line 1\nmock log line 2';
+        else out = 'OK';
+        setTimeout(function () { window[cb](0, out, ''); }, 120);
+      },
+      toast: function () {}
+    };
+    document.getElementById('app').classList.remove('hidden');
+    startPolling();
+  }
+} else {
+  document.getElementById('app').classList.remove('hidden');
+  startPolling();
+}
+var MOCK_STATUS = {
+  BackendState: 'Running',
+  Health: [],
+  ExitNodeStatus: null,
+  Self: { HostName: 'pixel8', OS: 'linux', TailscaleIPs: ['100.64.0.1', 'fd7a:115c:a1e0::1'], Online: true },
+  Peer: {
+    'k1': { HostName: 'desktop', TailscaleIPs: ['100.64.0.2'], Online: true },
+    'k2': { HostName: 'vps-exit', TailscaleIPs: ['100.64.0.3'], Online: false, ExitNode: true, LastSeen: '2026-10-15T10:00:00Z' }
+  }
+};
+</script>
+</body>
+</html>

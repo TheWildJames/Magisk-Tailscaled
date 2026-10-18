@@ -37,6 +37,23 @@ The [Tailscale app](https://play.google.com/store/apps/details?id=com.tailscale.
 
 After installation, the Tailscale daemon (`tailscaled`) will run automatically on boot.
 
+## KernelSU WebUI & Action button
+
+On KernelSU (and MMRL) the module ships a **WebUI** — open it with the **WebUI** button in the manager:
+
+- Connect / disconnect toggle (daemon + `tailscale up`/`down`)
+- Tailscale IPs, host name, exit node, backend state
+- Live tailnet device list (online status, IPs, exit nodes)
+- Login URL flow (opens the browser), logout
+- Daemon log viewer (last 40 lines)
+
+The **Action** button in the manager toggles Tailscale completely on/off:
+
+- **ON**: starts the `tailscaled` daemon, runs `tailscale up` (reuses stored prefs); if the device isn't logged in it prints a login URL and tries to open the browser.
+- **OFF**: runs `tailscale down`, then stops the daemon.
+
+On plain Magisk (no WebUI support) use `su -c tailscaled.service start|stop` instead.
+
 ## Limitation
 
 - This module only support for `arm` or `arm64` architecture, you can download manually for other architecture.
