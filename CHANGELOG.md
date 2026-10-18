@@ -1,3 +1,11 @@
+## v2.3.0.0
+
+- **WebUI v2** — complete rewrite of `webroot/index.html` as a 3-page app: **Devices** (VPN toggle, login button, device info, peer list with tap-to-ping, health warnings), **Settings** (accept DNS, accept routes, advertise as exit node, LAN access, exit-node picker, logout), **Logs** (daemon + service logs).
+- Always-render design (bindhosts-style): the page renders even when the KernelSU JS bridge is missing or late, with a retry banner — no more "open from KernelSU Manager" dead screen.
+- Manual login button — no more auto-spawning `tailscale login` execs on every poll.
+- Module description in KernelSU Manager now tracks VPN state (`⚡ VPN connected` / `⛔ VPN disconnected`), same format as the service writer.
+- `action.sh`: removed `jq` dependency (not present on Android) — backend state parsed with grep/sed.
+
 ## v2.2.0.0
 
 - Added KernelSU **WebUI** (`webroot/index.html`): status dashboard, connect/disconnect toggle, tailnet device list, login URL flow, logout, daemon log viewer. Opens via the WebUI button in KernelSU Manager / MMRL.
