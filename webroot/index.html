@@ -14,7 +14,7 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;overflow-x:hidden}
-#page{padding:14px 14px calc(var(--nav-h) + 28px);max-width:640px;margin:0 auto;display:none}
+#page{padding:14px 14px calc(var(--nav-h) + 28px);max-width:640px;margin:0 auto}
 .page{display:none}
 .page.active{display:block}
 header{display:flex;align-items:center;gap:12px;padding:4px 2px 14px}
@@ -573,54 +573,70 @@ function loadLogs() {
     .then(function (r) { document.getElementById('svclogview').textContent = r.stdout.trim() || '(empty)'; });
 }
 
-/* ===== nav ===== */
-document.querySelectorAll('nav .navitem').forEach(function (n) {
-  n.addEventListener('click', function () {
-    document.querySelectorAll('nav .navitem').forEach(function (x) { x.classList.remove('active'); });
-    n.classList.add('active');
-    document.querySelectorAll('.page').forEach(function (x) { x.classList.remove('active'); });
-    document.getElementById(n.dataset.page).classList.add('active');
-    if (n.dataset.page === 'pg-logs') loadLogs();
-  });
-});
+/* ===== boot: make content visible before anything else can fail ===== */
+(function () {
+  try { document.getElementById('page').style.display = ''; } catch (e) {}
+})();
 
-/* ===== events ===== */
-document.getElementById('gswitch').addEventListener('click', toggleVPN);
-document.getElementById('loginbtn').addEventListener('click', startLogin);
-document.getElementById('openurl').addEventListener('click', openLoginUrl);
-document.getElementById('copyurl').addEventListener('click', copyLoginUrl);
-document.getElementById('logout').addEventListener('click', doLogout);
-document.getElementById('refreshlog').addEventListener('click', loadLogs);
-document.getElementById('bri-retry').addEventListener('click', function () { bridgeOK = false; updateBridgeBanner(); probeBridge(); });
-
-document.getElementById('pg-settings').addEventListener('click', function (e) {
-  var sw = e.target.closest('.sw');
-  if (sw && sw.id && !sw.classList.contains('busy')) {
-    var want = !sw.classList.contains('on');
-    sw.classList.add('busy');
-    var flag = { 'sw-acceptdns': '--accept-dns', 'sw-acceptroutes': '--accept-routes',
-                 'sw-advexit': '--advertise-exit-node', 'sw-lanaccess': '--exit-node-allow-lan-access' }[sw.id];
-    setPref(flag, want).then(function () { render(); });
-    return;
-  }
-  var opt = e.target.closest('.exitopt');
-  if (opt && !opt.classList.contains('sel')) {
-    setExitNode(opt.dataset.node).then(function () { render(); });
-  }
-});
-document.getElementById('peers').addEventListener('click', function (e) {
-  var pr = e.target.closest('.peer');
-  if (pr && pr.dataset.node && !pr.dataset.node.match(/^$/) && pr.dataset.node) pingPeer(pr.dataset.node, pr.dataset.name || pr.dataset.node);
-});
-
-/* ===== boot ===== */
-document.getElementById('page').style.display = '';  // never a dead screen
 function probeBridge() {
   exec(ENV + 'echo BRIDGE_OK', 4000).then(function (r) {
     bridgeOK = (r.stdout.indexOf('BRIDGE_OK') !== -1);
     updateBridgeBanner();
   });
 }
+
+/* ===== events ===== */
+(function () {
+  try {
+    document.getElementById('gswitch').addEventListener('click', toggleVPN);
+    document.getElementById('loginbtn').addEventListener('click', startLogin);
+    document.getElementById('openurl').addEventListener('click', openLoginUrl);
+    document.getElementById('copyurl').addEventListener('click', copyLoginUrl);
+    document.getElementById('logout').addEventListener('click', doLogout);
+    document.getElementById('refreshlog').addEventListener('click', loadLogs);
+    document.getElementById('bri-retry').addEventListener('click', function () { bridgeOK = false; updateBridgeBanner(); probeBridge(); });
+
+    document.getElementById('pg-settings').addEventListener('click', function (e) {
+      var sw = e.target.closest('.sw');
+      if (sw && sw.id && !sw.classList.contains('busy')) {
+        var want = !sw.classList.contains('on');
+        sw.classList.add('busy');
+        var flag = { 'sw-acceptdns': '--accept-dns', 'sw-acceptroutes': '--accept-routes',
+                     'sw-advexit': '--advertise-exit-node', 'sw-lanaccess': '--exit-node-allow-lan-access' }[sw.id];
+        setPref(flag, want).then(function () { render(); });
+        return;
+      }
+      var opt = e.target.closest('.exitopt');
+      if (opt && !opt.classList.contains('sel')) {
+        setExitNode(opt.dataset.node).then(function () { render(); });
+      }
+    });
+    document.getElementById('peers').addEventListener('click', function (e) {
+      var pr = e.target.closest('.peer');
+      if (pr && pr.dataset.node) pingPeer(pr.dataset.node, pr.dataset.name || pr.dataset.node);
+    });
+  } catch (e) {
+    // never let a failed listener registration blank the app
+    try { console.log('listener error: ' + (e && e.message)); } catch (e2) {}
+  }
+})();
+
+/* ===== nav (kept separate — missing nav must not kill button wiring) ===== */
+(function () {
+  try {
+    document.querySelectorAll('nav .navitem').forEach(function (n) {
+      n.addEventListener('click', function () {
+        document.querySelectorAll('nav .navitem').forEach(function (x) { x.classList.remove('active'); });
+        n.classList.add('active');
+        document.querySelectorAll('.page').forEach(function (x) { x.classList.remove('active'); });
+        document.getElementById(n.dataset.page).classList.add('active');
+        if (n.dataset.page === 'pg-logs') loadLogs();
+      });
+    });
+  } catch (e) {
+    try { console.log('nav error: ' + (e && e.message)); } catch (e2) {}
+  }
+})();
 var pollTimer = null;
 function startPolling() {
   if (pollTimer) return;
