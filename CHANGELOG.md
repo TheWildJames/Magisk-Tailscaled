@@ -1,3 +1,8 @@
+## v2.4.0.1
+
+- **WebUI: login flow fixed.** The auth URL the daemon generates while you're logged out now appears automatically as a clickable link (with Open in browser / Copy) — previously it was generated but thrown away, so the switch sat off with no path forward.
+- **WebUI: distinct "logged out" switch state.** When tailscaled is running but you're not logged in, the switch thumb glows amber and reads "tailscaled service is running — log in to connect" — no longer identical to the service-stopped look that contradicted the action button's "service running" report.
+
 ## v2.4.0.0
 
 - **Fixed: `tailscaled` failed to start** (`--statedir (or at least --state) is required`). Our binaries are built from official tailscale source, which has no Android default paths (upstream's fork baked them in). The daemon now gets everything explicitly: `--tun=userspace-networking --statedir=/data/adb/tailscale --socket=/data/adb/tailscale/run/tailscaled.sock --port=41641`.
