@@ -1,3 +1,7 @@
+## v2.3.0.1
+
+- d87d257 WebUI: harden boot against blank screen on KernelSU Next WebView
+
 ## v2.3.0.0
 
 - **WebUI v2** — complete rewrite of `webroot/index.html` as a 3-page app: **Devices** (VPN toggle, login button, device info, peer list with tap-to-ping, health warnings), **Settings** (accept DNS, accept routes, advertise as exit node, LAN access, exit-node picker, logout), **Logs** (daemon + service logs).
