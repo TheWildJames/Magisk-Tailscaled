@@ -1,3 +1,10 @@
+## v2.4.0.0
+
+- **Fixed: `tailscaled` failed to start** (`--statedir (or at least --state) is required`). Our binaries are built from official tailscale source, which has no Android default paths (upstream's fork baked them in). The daemon now gets everything explicitly: `--tun=userspace-networking --statedir=/data/adb/tailscale --socket=/data/adb/tailscale/run/tailscaled.sock --port=41641`.
+- **Ships the `tailscale` CLI** — previously no release contained the CLI binary at all (upstream used a multicall daemon). Each release tgz now contains `tailscaled` (daemon), `tailscale.bin` (CLI) and `tailscale` (small wrapper pointing the CLI at the module socket).
+- State file lives at `/data/adb/tailscale/tailscaled.state` — preserved across module updates.
+- Verified end-to-end on official v1.104.1 source: daemon stays up, userspace mode active, CLI `status --json` and `login` URL flow both work.
+
 ## v2.3.0.1
 
 - d87d257 WebUI: harden boot against blank screen on KernelSU Next WebView
