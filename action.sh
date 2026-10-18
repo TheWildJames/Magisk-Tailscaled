@@ -27,7 +27,8 @@ daemon_running() {
 }
 
 backend_state() {
-	tailscale status --json 2>/dev/null | jq -r '.BackendState // empty' 2>/dev/null
+	# no jq on Android — parse with grep/sed only
+	tailscale status --json 2>/dev/null | grep -o '"BackendState": *"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/'
 }
 
 login_url_from_daemon() {
