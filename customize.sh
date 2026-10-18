@@ -101,7 +101,8 @@ unzip -qqo "$ZIPFILE" -x 'META-INF/*' 'tailscale/*' -d "$MODPATH"
 mkdir -p "$TS_DIR" "$TS_SCRIPTS_DIR" "$SERVICE_DIR" "$MODPATH/system/bin/"
 unzip -qqjo "$ZIPFILE" 'tailscale/scripts/*' -d "$TS_SCRIPTS_DIR"
 unzip -qqjo "$ZIPFILE" 'tailscale/settings.sh' -d "$TS_DIR"
-ln -sf "$TS_BIN_DIR/tailscaled" "$TS_BIN_DIR/tailscale"
+# NOTE: `tailscale` (CLI wrapper) now ships in the zip/tgz alongside
+# tailscaled and tailscale.bin — no multicall symlink anymore.
 ln -sf "$TS_BIN_DIR/"* "$MODPATH/system/bin/"
 
 ln -sf "$TS_SCRIPTS_DIR/tailscaled.service" "$MODPATH/system/bin/"
@@ -155,7 +156,7 @@ if [ ! -f "/system/bin/tailscale" ] || ! cmp --silent "/system/bin/tailscale" "$
 	ui_print "- Link file to /dev/."
 	ln -sf "$TS_SCRIPTS_DIR/tailscaled.service" /dev/tailscaled.service
 	ln -sf "$TS_BIN_DIR/tailscaled" /dev/tailscaled
-	ln -sf "$TS_BIN_DIR/tailscaled" /dev/tailscale
+	ln -sf "$TS_BIN_DIR/tailscale" /dev/tailscale
 	ui_print "-----------------------------------------------------------"
 	ui_print " Instructions       "
 	ui_print "-----------------------------------------------------------"

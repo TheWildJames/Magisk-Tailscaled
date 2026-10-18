@@ -11,10 +11,10 @@
 #                     If unset, NDK r27c is downloaded to /tmp.
 #
 # Outputs (in output-dir):
-#   tailscaled.arm, tailscaled.arm64
+#   tailscaled.arm(.arm64), tailscale.arm(.arm64)
 #   tailscale_<version>_arm.tgz, tailscale_<version>_arm64.tgz
-#     (each tgz contains a single `tailscaled` binary, same layout as
-#      anasfanani/tailscale-android-cli releases)
+#     (each tgz contains `tailscale` (sh wrapper), `tailscale.bin` (CLI)
+#      and `tailscaled` (daemon))
 set -euo pipefail
 
 TS_VERSION="${1:-}"
@@ -76,11 +76,15 @@ mkdir -p "$SCRIPT_DIR/../../$OUT_DIR"
 
 build_arch() {
   local GOARCH=$1 CC=$2
-  echo "Building tailscaled for ${GOARCH}..."
+  echo "Building tailscaled + tailscale CLI for ${GOARCH}..."
   GOOS=android GOARCH=$GOARCH CGO_ENABLED=1 CC=$CC CXX="${CC}++" \
     go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
     -o "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH" ./cmd/tailscaled
-  chmod +x "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH"
+  GOOS=android GOARCH=$GOARCH CGO_ENABLED=1 CC=$CC CXX="${CC}++" \
+    go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
+    -o "$SCRIPT_DIR/../../$OUT_DIR/tailscale.$GOARCH" ./cmd/tailscale
+  chmod +x "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH" \
+           "$SCRIPT_DIR/../../$OUT_DIR/tailscale.$GOARCH"
 }
 
 # GOARCH=arm  -> binary suffix .arm,  NDK clang armv7a
@@ -90,8 +94,33 @@ build_arch arm64 aarch64-linux-android21-clang
 
 cd "$SCRIPT_DIR/../.."
 echo "Packaging tgz archives..."
-tar -czf "${OUT_DIR}/tailscale_${TS_VERSION}_arm64.tgz" -C "${OUT_DIR}" --transform='s/tailscaled.arm64/tailscaled/' tailscaled.arm64
-tar -czf "${OUT_DIR}/tailscale_${TS_VERSION}_arm.tgz"  -C "${OUT_DIR}" --transform='s/tailscaled.arm/tailscaled/'  tailscaled.arm
+# Each tgz ships THREE files:
+#   tailscaled    - the daemon. Official tailscale source has NO Android
+#                   default paths (upstream anasfanani fork baked them in),
+#                   so settings.sh passes --statedir/--socket explicitly.
+#   tailscale.bin - the tailscale CLI (official source, no multicall).
+#   tailscale     - tiny sh wrapper routing the CLI to the module socket;
+#                   the CLI's default socket (/var/run/tailscale/...) does
+#                   not exist on Android.
+package_arch() {
+  local GOARCH=$1
+  local STAGE="${OUT_DIR}/stage-${GOARCH}"
+  rm -rf "$STAGE" && mkdir -p "$STAGE"
+  cp "${OUT_DIR}/tailscaled.$GOARCH" "$STAGE/tailscaled"
+  cp "${OUT_DIR}/tailscale.$GOARCH"  "$STAGE/tailscale.bin"
+  cat > "$STAGE/tailscale" <<'EOF'
+#!/system/bin/sh
+# tailscale CLI wrapper: the official CLI defaults to
+# /var/run/tailscale/tailscaled.sock, which does not exist on Android.
+exec /data/adb/tailscale/bin/tailscale.bin --socket=/data/adb/tailscale/run/tailscaled.sock "$@"
+EOF
+  chmod 755 "$STAGE/tailscale" "$STAGE/tailscale.bin" "$STAGE/tailscaled"
+  tar -czf "${OUT_DIR}/tailscale_${TS_VERSION}_${GOARCH}.tgz" \
+    -C "$STAGE" tailscale tailscale.bin tailscaled
+  rm -rf "$STAGE"
+}
+package_arch arm
+package_arch arm64
 
 echo "Done:"
 ls -lh "${OUT_DIR}"

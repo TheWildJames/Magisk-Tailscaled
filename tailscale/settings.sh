@@ -14,11 +14,19 @@ TS_DIR="/data/adb/tailscale"
 export PATH="${TS_DIR}/bin:${TS_DIR}/scripts:/data/adb/magisk:/data/adb/ksu/bin:$PATH:/system/bin:${TS_MOD_DIR}/system/bin"
 export HOME="/data/adb/tailscale/" # Because tailscaled will write log to $HOME
 
-# Set tailscaled & tailscale configuration
-export TS_DAEMON_CMD="tailscaled -no-logs-no-support"
-
 # Set tailscaled directory variables
 export TS_RUN_DIR="${TS_DIR}/run"
+mkdir -p "$TS_RUN_DIR" 2>/dev/null || true
+
+# Set tailscaled & tailscale configuration
+# Official-source binaries have NO Android default paths (upstream
+# anasfanani fork baked --statedir/--socket into its binary; ours does not),
+# so they are passed explicitly:
+#   userspace networking  - no kernel TUN on Android
+#   statedir              - state file lives beside module data (survives updates)
+#   socket                - module run dir (CLI wrapper uses the same path)
+export TS_SOCKET="${TS_RUN_DIR}/tailscaled.sock"
+export TS_DAEMON_CMD="tailscaled --tun=userspace-networking --statedir=${TS_DIR} --socket=${TS_SOCKET} --port=41641 -no-logs-no-support"
 
 # Set tailscaled log variables
 export TS_LOG_FILE="${TS_RUN_DIR}/tailscaled.log"

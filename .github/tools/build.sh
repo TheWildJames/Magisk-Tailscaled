@@ -25,10 +25,12 @@ echo "Building Android tailscaled binaries from source..."
 "$TOOLS_DIR/build-tailscale-android.sh" "$TS_VERSION" "$DIST_DIR"
 
 echo "Extracting binaries into ${BIN_DIR}..."
-tar -xzf "$DIST_DIR/tailscale_${TS_VERSION}_arm.tgz" -C "$BIN_DIR"
-mv "$BIN_DIR/tailscaled" "$BIN_DIR/tailscaled-arm"
-tar -xzf "$DIST_DIR/tailscale_${TS_VERSION}_arm64.tgz" -C "$BIN_DIR"
-mv "$BIN_DIR/tailscaled" "$BIN_DIR/tailscaled-arm64"
+for A in arm arm64; do
+  tar -xzf "$DIST_DIR/tailscale_${TS_VERSION}_${A}.tgz" -C "$BIN_DIR"
+  mv "$BIN_DIR/tailscaled"    "$BIN_DIR/tailscaled-$A"
+  mv "$BIN_DIR/tailscale.bin" "$BIN_DIR/tailscale.bin-$A"
+  mv "$BIN_DIR/tailscale"     "$BIN_DIR/tailscale-$A"
+done
 
 for ARCH in arm arm64; do
   case $ARCH in
