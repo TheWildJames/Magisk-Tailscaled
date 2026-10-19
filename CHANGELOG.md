@@ -1,3 +1,9 @@
+## v2.5.1.0
+
+- 501dead Fix daemon panic on login: taildrop newFileOps nil on headless Android + honest WebUI crash state
+- **Fixed: daemon crashed the moment login completed.** v1.104.1's taildrop extension calls a nil `newFileOps` on headless Android builds (upstream bug — the file-ops provider only exists behind `!android` build tags or the official app's cgo). We now carry a patch in the build that disables Taildrop (non-functional headless anyway) instead of SIGSEGV-ing after successful login.
+- **Fixed: UI limbo after a daemon crash** — the poll's `pgrep` matched the `tailscaled.service` script's own cmdline, so a dead daemon still showed "Not logged in" with every field "—". Liveness now comes from `status --json` itself: a crashed daemon shows "Service stopped — tap to start", and tapping restarts it.
+
 ## v2.5.0.0
 
 - ce59c72 WebUI v3: bindhosts-style rewrite — Material components, one-exec poll, tap-safe rendering
