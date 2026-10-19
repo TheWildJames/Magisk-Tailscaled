@@ -1,3 +1,11 @@
+## v2.5.0.0
+
+- ce59c72 WebUI v3: bindhosts-style rewrite — Material components, one-exec poll, tap-safe rendering
+- **WebUI v3** — rebuilt after bindhosts' proven layout (WTFPL, github.com/bindhosts/bindhosts): header + bottom bar (Home / Devices / More), Material web components (real `md-switch` etc., vendored prebuilt bundle — no build tooling in CI), slide-up logs terminal, M3 dialogs + snackbar, follows the manager's theme.
+- **Fixes the slowness and dead touches:** one combined root-shell exec per poll instead of 4+; DOM/peer list only rebuilt when values actually change; events delegated on stable parents so a re-render can't swallow a tap. Polling pauses while dialogs are open.
+- Login flow as in v2.4.0.1: auth URL auto-appears with Open in browser / Copy; manual Log in button; no auto-login execs. `tailscale set` flags verified against v1.104.1.
+- Tested headless (mock connected / mock logged-out / no-bridge): all states render with zero console errors.
+
 ## v2.4.0.1
 
 - **WebUI: login flow fixed.** The auth URL the daemon generates while you're logged out now appears automatically as a clickable link (with Open in browser / Copy) — previously it was generated but thrown away, so the switch sat off with no path forward.
