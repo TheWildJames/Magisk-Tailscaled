@@ -1,717 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tailscaled</title>
-<style>
-:root{
-  --bg:#0f1115;--surf:#16181f;--surf2:#1d2029;--surf3:#242835;
-  --border:#2a2e3b;--text:#e7e9f0;--muted:#9aa1b5;--accent:#4f8cff;
-  --ok:#34d399;--warn:#fbbf24;--err:#f87171;
-  --radius:16px;--nav-h:64px;
-}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-html,body{height:100%}
-body{background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;overflow-x:hidden}
-#page{padding:14px 14px calc(var(--nav-h) + 28px);max-width:640px;margin:0 auto}
-.page{display:none}
-.page.active{display:block}
-header{display:flex;align-items:center;gap:12px;padding:4px 2px 14px}
-.logo{width:38px;height:38px;border-radius:11px;flex:none;background:#2e3240;display:flex;align-items:center;justify-content:center}
-.logo svg{width:24px;height:24px}
-header h1{font-size:18px;font-weight:700;letter-spacing:.2px}
-header .sub{font-size:12px;color:var(--muted);margin-top:1px}
-.pill{margin-left:auto;padding:4px 11px;border-radius:99px;font-size:12px;font-weight:700;background:var(--surf2);border:1px solid var(--border);white-space:nowrap;color:var(--muted)}
-.pill.ok{color:var(--ok);border-color:rgba(52,211,153,.4)}
-.pill.warn{color:var(--warn);border-color:rgba(251,191,36,.4)}
-.pill.err{color:var(--err);border-color:rgba(248,113,113,.4)}
-.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:13px}
-.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:11px;font-weight:700}
-.togglecard{text-align:center;padding:20px 16px}
-#gswitch{width:64px;height:36px;border-radius:99px;background:var(--surf3);border:1px solid var(--border);position:relative;display:inline-block;cursor:pointer;transition:background .2s;vertical-align:middle}
-#gswitch .thumb{position:absolute;top:3px;left:3px;width:28px;height:28px;border-radius:50%;background:#8b93a8;transition:all .2s}
-#gswitch.on{background:var(--accent);border-color:var(--accent)}
-#gswitch.on .thumb{left:32px;background:#fff}
-#gswitch.wait .thumb{background:var(--warn);box-shadow:0 0 10px rgba(251,191,36,.45)}
-#gswitch.busy{opacity:.55;pointer-events:none}
-#statustext{margin-top:12px;font-size:16px;font-weight:700}
-#statussub{margin-top:3px;font-size:13px;color:var(--muted);min-height:17px}
-#loginhero{display:none;text-align:center;padding:26px 16px}
-#loginhero .bigmsg{font-size:16px;margin-bottom:20px;color:var(--muted)}
-#loginbtn{width:100%;max-width:300px;padding:14px 0;border:none;border-radius:13px;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
-#loginurlbox{display:none;margin-top:18px;text-align:left}
-#loginurlbox .url{padding:11px;background:var(--surf2);border:1px dashed var(--border);border-radius:10px;font-size:12.5px;word-break:break-all;margin-bottom:10px;color:var(--accent)}
-.btnrow{display:flex;gap:8px}
-.btn{flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:var(--surf2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;text-align:center}
-.btn:active{background:var(--surf3)}
-.btn.danger{color:var(--err);border-color:rgba(248,113,113,.3)}
-.btn:disabled{opacity:.45;pointer-events:none}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px}
-.kv .k{color:var(--muted)}
-.kv .v{text-align:right;word-break:break-all}
-.peer{display:flex;align-items:center;gap:11px;padding:10px 2px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:8px}
-.peer:active{background:var(--surf2)}
-.peer:last-child{border-bottom:none}
-.dot{width:9px;height:9px;border-radius:50%;background:#4b5563;flex:none}
-.dot.on{background:var(--ok);box-shadow:0 0 7px rgba(52,211,153,.55)}
-.peer .pname{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.peer .pmeta{color:var(--muted);font-size:12px;margin-top:1px}
-.peer .pip{margin-left:auto;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.tag{display:inline-block;font-size:10px;font-weight:700;color:var(--accent);border:1px solid rgba(79,140,255,.45);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:1px}
-.tag.sel{background:var(--accent);color:#fff}
-.srow{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--border)}
-.srow:last-child{border-bottom:none}
-.srow .slabel{flex:1}
-.srow .slabel .st{font-weight:600;font-size:14px}
-.srow .slabel .sd{color:var(--muted);font-size:12px;margin-top:1px}
-.sw{width:48px;height:28px;border-radius:99px;background:var(--surf3);border:1px solid var(--border);position:relative;flex:none;cursor:pointer;transition:background .15s}
-.sw .thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8b93a8;transition:all .15s}
-.sw.on{background:var(--accent);border-color:var(--accent)}
-.sw.on .thumb{left:24px;background:#fff}
-.sw.busy{opacity:.5;pointer-events:none}
-.exitopt{display:flex;align-items:center;gap:11px;padding:11px 2px;border-bottom:1px solid var(--border);cursor:pointer}
-.exitopt:last-child{border-bottom:none}
-.exitopt .radio{width:18px;height:18px;border-radius:50%;border:2px solid #5b6172;flex:none;position:relative}
-.exitopt.sel .radio{border-color:var(--accent)}
-.exitopt.sel .radio::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
-pre{background:#0a0c10;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:11.5px;line-height:1.5;overflow:auto;white-space:pre-wrap;color:#b7c0d4;max-height:330px;font-family:ui-monospace,Menlo,Consolas,monospace}
-#snackbar{position:fixed;left:50%;bottom:calc(var(--nav-h) + 18px);transform:translateX(-50%) translateY(20px);background:#2c3145;color:#fff;padding:10px 18px;border-radius:11px;font-size:13.5px;opacity:0;pointer-events:none;transition:all .25s;max-width:86vw;text-align:center;z-index:60;box-shadow:0 4px 18px rgba(0,0,0,.45)}
-#snackbar.show{opacity:1;transform:translateX(-50%) translateY(0)}
-#bridgebanner{display:none;margin:0 0 13px;padding:12px 14px;border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.08);border-radius:var(--radius);font-size:13px;color:var(--warn)}
-#bridgebanner .btn{margin-top:9px;display:inline-block;padding:7px 16px;flex:none}
-nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));background:rgba(15,17,21,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border);display:flex;z-index:50}
-nav .navitem{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);cursor:pointer;font-size:11px;font-weight:600;padding-bottom:env(safe-area-inset-bottom,0px)}
-nav .navitem svg{width:22px;height:22px;fill:currentColor}
-nav .navitem.active{color:var(--accent)}
-footer{text-align:center;color:var(--muted);font-size:11.5px;padding:6px 0 2px}
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Tailscaled</title>
+    <link rel="stylesheet" href="./index.css" type="text/css">
+    <script type="module" crossorigin src="./assets/md.js"></script>
+    <script type="module" crossorigin src="./assets/app.js"></script>
 </head>
 <body>
-
-<div id="bridgebanner">
-  <b>Root bridge unavailable.</b><br>
-  Commands can't run — open this page from the WebUI button in KernelSU / MMRL manager.
-  <span class="btn" id="bri-retry">Retry</span>
-</div>
-
-<div id="page">
-  <header>
-    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#9aa1b5" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="#4f8cff"/><circle cx="12" cy="12" r="1.6" fill="#0f1115"/></svg></div>
-    <div>
-      <h1>Tailscaled</h1>
-      <div class="sub" id="hsub">starting…</div>
-    </div>
-    <span class="pill" id="pill">…</span>
-  </header>
-
-  <!-- ============ DEVICES PAGE ============ -->
-  <div class="page active" id="pg-devices">
-
-    <div class="card togglecard" id="maincard">
-      <div id="gswitch"><div class="thumb"></div></div>
-      <div id="statustext">Checking…</div>
-      <div id="statussub"></div>
-    </div>
-
-    <div class="card" id="loginhero">
-      <div class="bigmsg">Log in to your Tailscale network</div>
-      <button id="loginbtn">Log in</button>
-      <div id="loginurlbox">
-        <div class="url" id="loginurl">Generating login URL…</div>
-        <div class="btnrow">
-          <span class="btn" id="openurl">Open in browser</span>
-          <span class="btn" id="copyurl">Copy URL</span>
+    <!-- Header -->
+    <div class="header">
+        <md-icon-button class="back-button" id="back-button" hidden aria-label="Back">
+            <md-icon flip-icon-in-rtl="true">
+                <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px"><path d="M640-80 240-480l400-400 71 71-329 329 329 329-71 71Z"/></svg>
+            </md-icon>
+        </md-icon-button>
+        <div class="title-container">
+            <div>
+                <span id="title">Tailscaled </span>
+                <span id="version-text"></span>
+            </div>
         </div>
-      </div>
+        <md-icon-button class="header-btn" id="logs-btn" title="View daemon logs">
+            <md-icon><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M280-280h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm-80 480q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg></md-icon>
+        </md-icon-button>
     </div>
 
-    <div class="card" id="devcard">
-      <h2>This device</h2>
-      <div class="kv" id="devinfo"><div class="k">…</div></div>
+    <!-- Bridge banner: rendered only when the exec bridge is missing -->
+    <div id="bridge-banner" hidden>
+        <span class="banner-text">Waiting for KernelSU bridge… open from KernelSU Manager or MMRL.</span>
+        <md-text-button id="retry-btn">Retry</md-text-button>
     </div>
 
-    <div class="card" id="peerscard">
-      <h2>Devices <span id="peercount"></span></h2>
-      <div id="peers"></div>
+    <!-- Content -->
+    <div class="content" id="content-container">
+
+        <!-- ============ HOME PAGE ============ -->
+        <div class="page-view" data-active="true" id="page-home">
+            <div class="body-content constant-height">
+                <!-- Status box (tap = toggle VPN) -->
+                <div class="box" id="status-box">
+                    <md-ripple></md-ripple>
+                    <div class="status-main">
+                        <md-switch id="main-switch" icons></md-switch>
+                        <h2 id="status-header">Tailscale</h2>
+                        <p id="status-text">Initializing…</p>
+                    </div>
+                </div>
+
+                <!-- Connection info -->
+                <div class="box" id="info-box">
+                    <h2>Connection</h2>
+                    <div id="info-rows">
+                        <div class="kv-row"><span class="k">Tailscale IPv4</span><span class="v" id="kv-ip4">—</span></div>
+                        <div class="kv-row"><span class="k">Tailscale IPv6</span><span class="v" id="kv-ip6">—</span></div>
+                        <div class="kv-row"><span class="k">Exit node</span><span class="v" id="kv-exit">—</span></div>
+                        <div class="kv-row"><span class="k">Backend state</span><span class="v" id="kv-state">—</span></div>
+                    </div>
+                </div>
+
+                <!-- Login box (NeedsLogin only) -->
+                <div class="box" id="login-box" hidden>
+                    <p class="bigmsg">Log in to your Tailscale network</p>
+                    <md-filled-button id="login-btn">Log in</md-filled-button>
+                    <div class="login-url-row" id="login-url-row" hidden>
+                        <div class="login-url" id="login-url">Generating login URL…</div>
+                        <div class="login-url-btns">
+                            <md-text-button id="open-url-btn">Open in browser</md-text-button>
+                            <md-text-button id="copy-url-btn">Copy</md-text-button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="placeholder"></div>
+            </div>
+        </div>
+
+        <!-- ============ DEVICES PAGE ============ -->
+        <div class="page-view" id="page-devices">
+            <div class="body-content constant-height">
+                <div class="box" id="self-box">
+                    <h2>This device</h2>
+                    <div id="self-rows">
+                        <div class="kv-row"><span class="k">Host name</span><span class="v" id="kv-host">—</span></div>
+                        <div class="kv-row"><span class="k">Tailscale IPv4</span><span class="v" id="kv-self-ip4">—</span></div>
+                        <div class="kv-row"><span class="k">OS</span><span class="v" id="kv-self-os">—</span></div>
+                    </div>
+                </div>
+                <div class="box" id="peers-box">
+                    <h2>Devices <span id="peers-count"></span></h2>
+                    <div class="box-content" id="peers-list">
+                        <div class="peer-row"><span class="peer-sub">Start Tailscale to see your devices.</span></div>
+                    </div>
+                </div>
+                <div class="placeholder"></div>
+            </div>
+        </div>
+
+        <!-- ============ MORE PAGE ============ -->
+        <div class="page-view" id="page-more">
+            <div class="body-content constant-height">
+                <!-- Settings -->
+                <div class="box control-panel">
+                    <div><h3>Settings</h3></div>
+                    <div class="box-content">
+                        <div class="list-item" id="row-accept-dns">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q29 0 55.5-5.5T584-182q-19-17-29.5-40.5T544-272q0-50 35-85t85-35q25 0 46.5 8.5T752-363q9-27 13.5-55.5T870-480q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 30 5 57t14 53q20-14 42-21t46-7q50 0 85 35t35 85q0 23-8.5 43T432-170q23 5 46.5 7.5T480-160Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Accept DNS options<small>Use tailnet DNS servers</small></span>
+                            <md-switch icons class="soft-disabled" id="sw-accept-dns"></md-switch>
+                        </div>
+                        <div class="list-item" id="row-accept-routes">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M520-600v-80q0-17 11.5-28.5T560-720h80v-80h-80q-50 0-85 35t-35 85v240l-34 51q-8 12-1.5 24.5T559-352l179 230q8 10 21 7.5t18-12.5L520-600Zm-280 76-51-78q-8-12-1.5-24.5T209-639l51-78v-80q0-50 35-85t85-35h80v-80h-80q-50 0-85 35t-35 85v240l-34 51q-8 12-1.5 24.5T280-524Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Accept routes<small>Use subnet routes from other devices</small></span>
+                            <md-switch icons class="soft-disabled" id="sw-accept-routes"></md-switch>
+                        </div>
+                        <div class="list-item" id="row-adv-exit">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-120 280-320l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-640q0-100 70-170t170-70q100 0 170 70t70 170v160h-80v-160q0-66-47-113t-113-47q-66 0-113 47t-47 113v160h-80v-160Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Advertise as exit node<small>Let other devices route through this phone</small></span>
+                            <md-switch icons class="soft-disabled" id="sw-adv-exit"></md-switch>
+                        </div>
+                        <div class="list-item" id="row-lan-access">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-480q0-100 70-170t170-70q100 0 170 70t70 170q0 100-70 170t-170 70q-100 0-170-70t-70-170Zm-40-160v-80H240q0-66 47-113t113-47h40v240Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Allow LAN access<small>Reach local network while using an exit node</small></span>
+                            <md-switch icons class="soft-disabled" id="sw-lan-access"></md-switch>
+                        </div>
+                        <div class="list-item" id="exitnode-row">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Exit node<small id="exitnode-current">None</small></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Session -->
+                <div class="box control-panel">
+                    <div><h3>Session</h3></div>
+                    <div class="box-content">
+                        <div class="list-item" id="restart-row">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q80 0 145.5 35.5T734-646v-94h60v204H590v-60h104q-38-54-96.5-87T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q71 0 128.5-38T778-352h66q-26 88-100 140t-164 52Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Restart service</span>
+                        </div>
+                        <div class="list-item" id="logout-row">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm400-160-58-56 103-104H360v-80h385L642-624l58-56 200 200-200 200Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Log out</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support / About -->
+                <div class="box control-panel">
+                    <div><h3>Support</h3></div>
+                    <div class="box-content">
+                        <div class="list-item" id="logs-row">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M280-280h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm-80 480q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">View daemon logs</span>
+                        </div>
+                        <div class="list-item" id="github-row">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-80q-139 0-239.5-100.5T140-420q0-139 100.5-239.5T480-760q139 0 239.5 100.5T820-420q0 139-100.5 239.5T480-80Zm-46-212h92v-96h96v-92h-96v-96h-92v96h-96v92h96v96Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">GitHub repository<small>TheWildJames/Magisk-Tailscaled</small></span>
+                        </div>
+                        <div class="list-item" id="about-row" style="cursor:default">
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Module<small id="module-version">Magisk-Tailscaled</small></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="placeholder"></div>
+            </div>
+        </div>
     </div>
 
-    <div class="card" id="healthcard" style="display:none">
-      <h2>Health</h2>
-      <div id="healthlist"></div>
-    </div>
-  </div>
-
-  <!-- ============ SETTINGS PAGE ============ -->
-  <div class="page" id="pg-settings">
-
-    <div class="card">
-      <h2>Account</h2>
-      <div class="kv" id="accountinfo"><div class="k">…</div></div>
-      <div class="btnrow" style="margin-top:12px">
-        <span class="btn danger" id="logout">Log out</span>
-      </div>
+    <!-- Prompt (snackbar) -->
+    <div class="prompt-container" unresolved>
+        <div class="prompt" id="prompt">
+            <span class="prompt-text"></span>
+            <md-text-button class="prompt-btn"></md-text-button>
+        </div>
     </div>
 
-    <div class="card">
-      <h2>Network</h2>
-      <div class="srow">
-        <div class="slabel"><div class="st">Accept DNS</div><div class="sd">Use DNS settings from the tailnet admin panel</div></div>
-        <div class="sw" id="sw-acceptdns"><div class="thumb"></div></div>
-      </div>
-      <div class="srow">
-        <div class="slabel"><div class="st">Accept routes</div><div class="sd">Use subnet routes advertised by other nodes</div></div>
-        <div class="sw" id="sw-acceptroutes"><div class="thumb"></div></div>
-      </div>
-      <div class="srow">
-        <div class="slabel"><div class="st">Advertise as exit node</div><div class="sd">Offer this device as an exit node</div></div>
-        <div class="sw" id="sw-advexit"><div class="thumb"></div></div>
-      </div>
-      <div class="srow">
-        <div class="slabel"><div class="st">Allow LAN access</div><div class="sd">Reach local network while using an exit node</div></div>
-        <div class="sw" id="sw-lanaccess"><div class="thumb"></div></div>
-      </div>
+    <!-- Bottom Bar -->
+    <div class="bottom-bar" unresolved>
+        <div class="bottom-bar-item" id="nav-home" page="home" selected>
+            <md-icon><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/></svg></md-icon>
+            <md-icon slot="selected"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M160-120v-480l320-240 320 240v480H520v-240h-80v240H160Z"/></svg></md-icon>
+            <div class="bottom-bar-item-text"><span>Home</span></div>
+        </div>
+        <div class="bottom-bar-item" id="nav-devices" page="devices">
+            <md-icon><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M160-120q-33 0-56.5-23.5T80-200v-560q0-33 23.5-56.5T160-840h200q33 0 56.5 23.5T440-760v560q0 33-23.5 56.5T360-120H160Zm440 0q-33 0-56.5-23.5T520-200v-560q0-33 23.5-56.5T600-840h200q33 0 56.5 23.5T880-760v560q0 33-23.5 56.5T800-120H600ZM200-360h120v-80H200v80Zm440 0h120v-80H640v80ZM200-480h120v-80H200v80Zm440 0h120v-80H640v80ZM200-600h120v-80H200v80Zm440 0h120v-80H640v80Z"/></svg></md-icon>
+            <md-icon slot="selected"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M160-120q-33 0-56.5-23.5T80-200v-560q0-33 23.5-56.5T160-840h200q33 0 56.5 23.5T440-760v560q0 33-23.5 56.5T360-120H160Zm440 0q-33 0-56.5-23.5T520-200v-560q0-33 23.5-56.5T600-840h200q33 0 56.5 23.5T880-760v560q0 33-23.5 56.5T800-120H600ZM200-360h120v-80H200v80Zm440 0h120v-80H640v80ZM200-480h120v-80H200v80Zm440 0h120v-80H640v80ZM200-600h120v-80H200v80Zm440 0h120v-80H640v80Z"/></svg></md-icon>
+            <div class="bottom-bar-item-text"><span>Devices</span></div>
+        </div>
+        <div class="bottom-bar-item" id="nav-more" page="more">
+            <md-icon><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg></md-icon>
+            <md-icon slot="selected"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg></md-icon>
+            <div class="bottom-bar-item-text"><span>More</span></div>
+        </div>
     </div>
 
-    <div class="card">
-      <h2>Exit node</h2>
-      <div id="exitlist"></div>
+    <!-- Logs terminal (slide menu) -->
+    <div class="constant-height blur-box slide-menu" id="logs-terminal" unresolved>
+        <div style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;box-sizing:border-box">
+            <h2 style="margin:0">Daemon log</h2>
+            <md-text-button id="clear-log-btn">Clear</md-text-button>
+        </div>
+        <div class="terminal" id="logs-content">Loading…</div>
+        <div class="slide-menu-bottom-padding"></div>
     </div>
 
-    <div class="card">
-      <h2>Module</h2>
-      <div class="kv" id="modinfo"><div class="k">…</div></div>
+    <!-- Dialogs -->
+    <div class="dialog-wrapper" unresolved>
+        <md-dialog id="logout-dialog">
+            <div slot="headline">Log out</div>
+            <div slot="content">Disconnect this device from your tailnet? You will need to log in again to reconnect.</div>
+            <div slot="actions">
+                <md-text-button id="logout-cancel">Cancel</md-text-button>
+                <md-text-button id="logout-confirm">Log out</md-text-button>
+            </div>
+        </md-dialog>
+
+        <md-dialog id="exitnode-dialog">
+            <div slot="headline">Choose exit node</div>
+            <div slot="content" id="exitnode-list" style="min-width:280px"></div>
+            <div slot="actions">
+                <md-text-button id="exitnode-close">Close</md-text-button>
+            </div>
+        </md-dialog>
     </div>
-  </div>
-
-  <!-- ============ LOGS PAGE ============ -->
-  <div class="page" id="pg-logs">
-    <div class="card">
-      <h2>Daemon log</h2>
-      <div class="btnrow" style="margin-bottom:10px"><span class="btn" id="refreshlog">Refresh (last 60)</span></div>
-      <pre id="logview">—</pre>
-    </div>
-    <div class="card">
-      <h2>Service log</h2>
-      <pre id="svclogview">—</pre>
-    </div>
-  </div>
-
-  <footer>Tailscaled · tailscale <span id="tsver">?</span></footer>
-</div>
-
-<nav>
-  <div class="navitem active" data-page="pg-devices">
-    <svg viewBox="0 -960 960 960"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm80-40v-120h200v120H240Zm280 0v-120h200v120H520ZM240-440v-120h200v120H240Zm280 0v-120h200v120H520ZM240-640v-120h480v120H240Z"/></svg>
-    <span>Devices</span>
-  </div>
-  <div class="navitem" data-page="pg-settings">
-    <svg viewBox="0 -960 960 960"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-121 51L86-356l102-78q-2-14-2-26.5t2-26.5L86-566l100-172 121 51q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l121-51 100 172-102 78q2 14 2 26.5t-2 26.5l102 78-100 172-121-51q-11 8-23 15t-24 12L590-80H370Zm112-80h96l14-106q31-8 57.5-23.5T696-325l100-41 40-68-90-69q2-15 2-30.5t-2-30.5l90-69-40-68-100-41q-23 20-49.5 35.5T592-574L578-680h-96l-14 106q-31 8-57.5 23.5T364-515l-100-41-40 68 90 69q-2 15-2 30.5t2 30.5l-90 69 40 68 100-41q23 20 49.5 35.5T492-254l14 74Zm48-180q33 0 56.5-23.5T560-520q0-33-23.5-56.5T480-600q-33 0-56.5 23.5T400-520q0 33 23.5 56.5T480-480Zm0-40Z"/></svg>
-    <span>Settings</span>
-  </div>
-  <div class="navitem" data-page="pg-logs">
-    <svg viewBox="0 -960 960 960"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h640v-480H160v480Zm40-40v-120h240v120H200Zm320 0v-120h240v120H520ZM200-440v-120h240v120H200Zm320 0v-120h240v120H520ZM200-640v-120h240v120H200Zm320 0v-120h240v120H520Z"/></svg>
-    <span>Logs</span>
-  </div>
-</nav>
-
-<div id="snackbar"></div>
-<script>
-'use strict';
-
-/* ===== KernelSU bridge (kernelsu-alt contract, verified vs tiann/KernelSU
-   WebViewInterface.kt + KOWX712/kernelsu-alt used by bindhosts) =====
-   ksu.exec(cmd)                        -> String (sync stdout)
-   ksu.exec(cmd, optsJson, cbFuncName)  -> async; global cb(errno, stdout, stderr)
-   Bridge is detected LAZILY on every call — never gate rendering on it. */
-var ENV = 'export PATH=/data/adb/tailscale/bin:/data/adb/tailscale/scripts:/data/adb/magisk:/data/adb/ksu/bin:/system/bin:$PATH; export HOME=/data/adb/tailscale; ';
-var SERVICE = '/data/adb/tailscale/scripts/tailscaled.service';
-var MODPROP = '/data/adb/modules/magisk-tailscaled/module.prop';
-
-var cbCounter = 0, bridgeOK = false;
-function exec(cmd, timeoutMs) {
-  timeoutMs = timeoutMs || 20000;
-  return new Promise(function (resolve) {
-    if (typeof ksu === 'undefined' || !ksu.exec) {
-      resolve({ errno: -1, stdout: '', stderr: 'no ksu bridge' });
-      return;
-    }
-    var settled = false, timer = null;
-    var done = function (r) {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      resolve(r);
-    };
-    var cbName = '__tscb_' + (++cbCounter);
-    window[cbName] = function (errno, stdout, stderr) {
-      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-      bridgeOK = true; updateBridgeBanner();
-      done({ errno: errno || 0, stdout: stdout || '', stderr: stderr || '' });
-    };
-    timer = setTimeout(function () {
-      try { delete window[cbName]; } catch (e) {}
-      done({ errno: -1, stdout: '', stderr: 'exec timeout' });
-    }, timeoutMs);
-    try {
-      ksu.exec(cmd, '{}', cbName);
-    } catch (e) {
-      try { delete window[cbName]; } catch (e2) {}
-      try {
-        var out = String(ksu.exec(cmd) || '');
-        bridgeOK = true; updateBridgeBanner();
-        done({ errno: 0, stdout: out, stderr: '' });
-      } catch (e2) {
-        done({ errno: -1, stdout: '', stderr: String(e2) });
-      }
-    }
-  });
-}
-function updateBridgeBanner() {
-  document.getElementById('bridgebanner').style.display = bridgeOK ? 'none' : 'block';
-}
-var snackTimer = null;
-function toast(msg) {
-  try { if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast(String(msg)); } catch (e) {}
-  var el = document.getElementById('snackbar');
-  el.textContent = msg;
-  el.classList.add('show');
-  if (snackTimer) clearTimeout(snackTimer);
-  snackTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
-}
-function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
-function ip4(p) { return (p && p.TailscaleIPs && p.TailscaleIPs[0]) || ''; }
-function kv(k, v) { return '<div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div>'; }
-
-/* ===== state ===== */
-var latest = null;   // tailscale status --json
-var prefs = null;    // tailscale debug prefs
-var daemonUp = false;
-var toggling = false;
-var loginUrl = '', loginPending = false;
-var versionStr = '';
-var logoutArmed = false, logoutArmTimer = null;
-
-var STATE_LABEL = {
-  Running: ['Connected', 'ok'],
-  Starting: ['Starting…', 'warn'],
-  NeedsLogin: ['Login required', 'warn'],
-  NeedsMachineAuth: ['Machine auth', 'warn'],
-  Stopped: ['Disconnected', 'err'],
-  NoState: ['No state', 'err']
-};
-
-/* ===== render ===== */
-function setPill(text, cls) {
-  var p = document.getElementById('pill');
-  p.textContent = text;
-  p.className = 'pill ' + cls;
-}
-function render() {
-  var st = latest;
-  var backend = st ? (st.BackendState || 'NoState') : null;
-  var f = STATE_LABEL[backend] || ['Unknown', 'err'];
-  var on = backend === 'Running';
-  var needsLogin = daemonUp && backend === 'NeedsLogin';
-
-  /* Daemon already holds a pending auth URL (e.g. generated by `tailscale up`
-     or a previous login call) — status --json exposes it as AuthURL.
-     Surface it for free instead of re-running `tailscale login`. */
-  if (needsLogin && st && st.AuthURL) loginUrl = String(st.AuthURL);
-  if (!needsLogin) loginUrl = '';
-
-  setPill(f.label, daemonUp ? f.cls : 'err');
-  document.getElementById('hsub').textContent = daemonUp
-    ? ('tailscale ' + (versionStr || '?'))
-    : 'tailscaled stopped';
-
-  var sw = document.getElementById('gswitch');
-  sw.classList.toggle('on', on);
-  sw.classList.toggle('busy', toggling);
-  sw.classList.toggle('wait', needsLogin && !toggling);
-  document.getElementById('statustext').textContent = toggling ? 'Working…'
-    : (!daemonUp ? 'Tailscale is off' : f.label);
-  document.getElementById('statussub').textContent = !daemonUp
-    ? 'tailscaled daemon is not running — tap to start'
-    : (needsLogin ? 'tailscaled service is running — log in to connect'
-      : (on && st && st.ExitNodeStatus ? 'Using exit node ' + ((st.ExitNodeStatus.TailscaleIPs && st.ExitNodeStatus.TailscaleIPs[0]) || '')
-        : (on ? '' : 'Daemon running, network disconnected')));
-
-  document.getElementById('loginhero').style.display = needsLogin ? 'block' : 'none';
-  document.getElementById('loginurlbox').style.display = loginUrl ? 'block' : 'none';
-  if (loginUrl) {
-    var luHtml = '<a href="' + esc(loginUrl) + '" target="_blank" rel="noopener">' + esc(loginUrl) + '</a>';
-    var luEl = document.getElementById('loginurl');
-    if (luEl.innerHTML !== luHtml) luEl.innerHTML = luHtml;
-  }
-
-  if (!daemonUp) {
-    document.getElementById('devinfo').innerHTML = '<div class="k" style="grid-column:1/3">Start Tailscale to see device info.</div>';
-    document.getElementById('peerscard').style.display = 'none';
-    document.getElementById('healthcard').style.display = 'none';
-  } else if (st && st.Self) {
-    var s = st.Self;
-    document.getElementById('devinfo').innerHTML =
-      kv('Host name', s.HostName || '—') +
-      kv('Tailscale IPv4', (s.TailscaleIPs && s.TailscaleIPs[0]) || '—') +
-      kv('Tailscale IPv6', (s.TailscaleIPs && s.TailscaleIPs[1]) || '—') +
-      kv('Exit node', st.ExitNodeStatus ? ((st.ExitNodeStatus.TailscaleIPs && st.ExitNodeStatus.TailscaleIPs[0]) || 'in use') : 'none') +
-      kv('OS', s.OS || '—');
-    renderPeers(st);
-    var hc = document.getElementById('healthcard');
-    if (st.Health && st.Health.length) {
-      hc.style.display = '';
-      document.getElementById('healthlist').innerHTML = st.Health.map(function (h) { return '<div class="peer" style="cursor:default"><span class="dot on" style="background:var(--warn);box-shadow:none"></span><span class="pmeta" style="margin:0">' + esc(h) + '</span></div>'; }).join('');
-    } else hc.style.display = 'none';
-  }
-
-  renderSettings(st);
-  document.getElementById('tsver').textContent = versionStr || '?';
-}
-function renderPeers(st) {
-  var box = document.getElementById('peers');
-  if (!st.Peer) { document.getElementById('peerscard').style.display = 'none'; return; }
-  var peers = Object.keys(st.Peer).map(function (k) { return st.Peer[k]; });
-  peers.sort(function (a, b) {
-    return (b.Online === true) - (a.Online === true) ||
-      String(a.HostName).localeCompare(String(b.HostName));
-  });
-  document.getElementById('peercount').textContent = '(' + peers.length + ')';
-  document.getElementById('peerscard').style.display = '';
-  box.innerHTML = peers.length ? peers.map(function (p) {
-    var meta = [];
-    if (p.ExitNode) meta.push('exit node');
-    if (p.Tags && p.Tags.length) meta.push('tagged');
-    if (!p.Online && p.LastSeen) meta.push('last seen ' + String(p.LastSeen).replace('T', ' ').slice(0, 16));
-    return '<div class="peer" data-node="' + esc(ip4(p)) + '" data-name="' + esc(p.HostName || '') + '">' +
-      '<span class="dot' + (p.Online ? ' on' : '') + '"></span>' +
-      '<span><span class="pname">' + esc(p.HostName || p.ID || '?') +
-      (p.ExitNode ? '<span class="tag">EXIT</span>' : '') +
-      (p.ExitNodeOption ? '<span class="tag opt">can exit</span>' : '') + '</span>' +
-      (meta.length ? '<div class="pmeta">' + esc(meta.join(' · ')) + '</div>' : '') + '</span>' +
-      '<span class="pip">' + esc(ip4(p)) + '</span></div>';
-  }).join('') : '<div class="peer" style="cursor:default"><span class="pmeta">No other devices in your tailnet</span></div>';
-}
-function renderSettings(st) {
-  var canSet = daemonUp && st && (st.BackendState === 'Running' || st.BackendState === 'Starting');
-  var backend = st ? st.BackendState : null;
-  document.getElementById('accountinfo').innerHTML = !daemonUp
-    ? kv('Status', 'daemon stopped')
-    : kv('Status', backend || '—') +
-      kv('Login', backend === 'Running' ? (latest && latest.Self && latest.Self.UserID != null ? 'account #' + latest.Self.UserID : 'logged in') : (backend === 'NeedsLogin' ? 'not logged in' : '—'));
-  var modinfo = document.getElementById('modinfo');
-  modinfo.innerHTML = kv('Module', 'Tailscaled') + kv('Binary', 'tailscale ' + (versionStr || '?')) +
-    kv('Data', '/data/adb/tailscale');
-
-  var sws = [
-    ['sw-acceptdns', prefs ? !!prefs.CorpDNS : false],
-    ['sw-acceptroutes', prefs ? !!prefs.RouteAll : false],
-    ['sw-advexit', prefs ? (String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1 || (prefs.AdvertiseRoutes && prefs.AdvertiseRoutes.indexOf && prefs.AdvertiseRoutes.indexOf('0.0.0.0/0') !== -1)) : false],
-    ['sw-lanaccess', prefs ? !!prefs.ExitNodeAllowLANAccess : false]
-  ];
-  sws.forEach(function (x) {
-    var el = document.getElementById(x[0]);
-    el.classList.toggle('on', !!x[1]);
-    el.classList.toggle('busy', !canSet);
-  });
-
-  var ex = document.getElementById('exitlist');
-  var current = prefs ? (prefs.ExitNodeIP || prefs.ExitNodeID || '') : '';
-  if (!daemonUp) { ex.innerHTML = '<div class="pmeta">Start Tailscale first.</div>'; return; }
-  if (!canSet) { ex.innerHTML = '<div class="pmeta">Log in to use exit nodes.</div>'; return; }
-  var opts = [];
-  if (latest && latest.Peer) {
-    Object.keys(latest.Peer).forEach(function (k) {
-      var p = latest.Peer[k];
-      if (p.ExitNodeOption) opts.push(p);
-    });
-  }
-  opts.sort(function (a, b) { return String(a.HostName).localeCompare(String(b.HostName)); });
-  var html = '<div class="exitopt' + (current ? '' : ' sel') + '" data-node="">' +
-    '<span class="radio"></span><span><span class="pname">None</span><div class="pmeta">Route directly</div></span></div>';
-  html += opts.map(function (p) {
-    var sel = current && (current === ip4(p) || current === p.HostName || current === p.ID);
-    return '<div class="exitopt' + (sel ? ' sel' : '') + '" data-node="' + esc(ip4(p)) + '" data-name="' + esc(p.HostName || '') + '">' +
-      '<span class="radio"></span><span><span class="pname">' + esc(p.HostName || p.ID || '?') + '</span>' +
-      '<div class="pmeta">' + esc(ip4(p)) + '</div></span>' +
-      '<span class="pip">' + (p.Online ? 'online' : 'offline') + '</span></div>';
-  }).join('');
-  ex.innerHTML = html;
-}
-
-/* ===== actions ===== */
-function updateDesc(kind) {
-  // mirror the service's own sed so both writers stay compatible:
-  // description=[ ⏲ HH:MM | <msg> ] <original desc>
-  var msg = kind === 'connected' ? '⚡ VPN connected ] '
-    : kind === 'disconnected' ? '⛔ VPN disconnected ] '
-    : null;
-  if (!msg) return;
-  exec(ENV + "T=$(date +%H:%M); sed -Ei \"s/^description=(\\[.*][[:space:]]*)?/description=[ ⏲ $T | " + msg.replace("'", "'\\''") + "/\" " + MODPROP + " 2>/dev/null; echo DESC_OK");
-}
-
-function fetchPrefs() {
-  if (!daemonUp) { prefs = null; return Promise.resolve(); }
-  return exec(ENV + 'tailscale debug prefs --json 2>/dev/null', 12000).then(function (r) {
-    try { prefs = (r.errno === 0 && r.stdout.trim()) ? JSON.parse(r.stdout) : null; }
-    catch (e) { prefs = null; }
-  });
-}
-var lastBackend = null;
-function refresh() {
-  return exec(ENV + 'busybox pgrep -f "[t]ailscaled" >/dev/null 2>&1 && echo UP || echo DOWN')
-    .then(function (r) {
-      daemonUp = (r.stdout.trim() === 'UP');
-      if (!daemonUp) { latest = null; prefs = null; }
-    })
-    .then(function () {
-      if (!daemonUp) return;
-      return exec(ENV + 'tailscale status --json 2>/dev/null', 15000).then(function (r) {
-        try { latest = (r.errno === 0 && r.stdout.trim()) ? JSON.parse(r.stdout) : null; }
-        catch (e) { latest = null; }
-      });
-    })
-    .then(fetchPrefs)
-    .then(function () {
-      var backend = latest ? latest.BackendState : null;
-      if (daemonUp && backend === 'Running' && lastBackend === 'NeedsLogin') {
-        toast('Logged in');
-        updateDesc('connected');
-      }
-      if (daemonUp && backend === 'Stopped' && lastBackend === 'Running') updateDesc('disconnected');
-      lastBackend = backend;
-      if (!versionStr && daemonUp) {
-        exec(ENV + 'tailscale version 2>/dev/null | head -1', 8000).then(function (r) {
-          versionStr = r.stdout.trim() || '?';
-          document.getElementById('tsver').textContent = versionStr;
-        });
-      }
-      render();
-    })
-    .catch(function () { render(); });
-}
-
-function toggleVPN() {
-  if (toggling) return;
-  var on = latest && latest.BackendState === 'Running';
-  toggling = true; render();
-  var cmd = on
-    ? ENV + 'tailscale down >/dev/null 2>&1; echo RC_DOWN=$?'
-    : ENV + SERVICE + ' start >/dev/null 2>&1; RC_UP=$?; sleep 2; timeout 8 tailscale up >/dev/null 2>&1 || true; echo RC_UP=$RC_UP';
-  exec(cmd, 45000).then(function (r) {
-    toggling = false;
-    var rc = (String(r.stdout).match(/RC_(?:UP|DOWN)=(\d+)/) || [])[1];
-    toast(on ? (rc === '0' ? 'Tailscale disconnected' : 'Disconnect failed — check logs')
-             : (rc === '0' ? 'Tailscale started' : 'Start failed — check logs'));
-    if (on) updateDesc('disconnected');
-    refresh();
-  });
-}
-
-function startLogin() {
-  if (loginPending) { document.getElementById('loginurlbox').style.display = 'block'; return; }
-  if (latest && latest.AuthURL) {   // daemon already has a URL pending — show it, no re-exec
-    loginUrl = String(latest.AuthURL);
-    render();
-    toast('Login URL ready');
-    return;
-  }
-  loginPending = true;
-  document.getElementById('loginurlbox').style.display = 'block';
-  document.getElementById('loginurl').textContent = 'Generating login URL…';
-  exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
-    .then(function (r) {
-      loginPending = false;
-      loginUrl = r.stdout.trim();
-      document.getElementById('loginurl').innerHTML = loginUrl
-        ? '<a href="' + esc(loginUrl) + '" target="_blank" rel="noopener">' + esc(loginUrl) + '</a>'
-        : 'Could not get a login URL — try: su -c tailscale login';
-      if (loginUrl) toast('Login URL ready');
-    });
-}
-function openLoginUrl() {
-  if (!loginUrl) return;
-  exec(ENV + 'am start -a android.intent.action.VIEW -d "' + loginUrl + '" >/dev/null 2>&1; echo OPEN');
-  toast('Opening browser…');
-}
-function copyLoginUrl() {
-  if (!loginUrl) return;
-  try {
-    navigator.clipboard.writeText(loginUrl).then(function () { toast('URL copied'); },
-      function () { toast(loginUrl); });
-  } catch (e) { toast('Copy failed'); }
-}
-function doLogout() {
-  var b = document.getElementById('logout');
-  if (!logoutArmed) {
-    logoutArmed = true;
-    b.textContent = 'Tap again to confirm';
-    if (logoutArmTimer) clearTimeout(logoutArmTimer);
-    logoutArmTimer = setTimeout(function () { logoutArmed = false; b.textContent = 'Log out'; }, 3500);
-    return;
-  }
-  logoutArmed = false; b.textContent = 'Log out';
-  toast('Logging out…');
-  exec(ENV + 'tailscale logout >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
-    toast(/RC=0/.test(r.stdout) ? 'Logged out' : 'Logout issue — see logs');
-    updateDesc('disconnected');
-    loginUrl = '';
-    refresh();
-  });
-}
-
-function setPref(flag, on) {
-  // flag is a `tailscale set` long option; advertise-exit-node takes no value
-  var val = (flag === '--advertise-exit-node') ? (on ? ' --advertise-exit-node' : ' --advertise-exit-node=false')
-             : (flag + '=' + (on ? 'true' : 'false'));
-  return exec(ENV + 'tailscale set ' + val + ' 2>&1; echo RC=$?', 20000).then(function (r) {
-    if (!/RC=0/.test(r.stdout)) toast('Failed: ' + r.stderr.trim().split('\n')[0]);
-    return fetchPrefs();
-  });
-}
-function setExitNode(ipAddr) {
-  var cmd = ENV + 'tailscale set --exit-node=' + (ipAddr || '') + ' 2>&1; echo RC=$?';
-  return exec(cmd, 20000).then(function (r) {
-    if (!/RC=0/.test(r.stdout)) toast('Failed: ' + r.stderr.trim().split('\n')[0]);
-    return Promise.all([fetchPrefs(), refresh()]);
-  });
-}
-function pingPeer(ipAddr, name) {
-  toast('Pinging ' + name + '…');
-  exec(ENV + 'tailscale ping --timeout 3s -c 4 ' + ipAddr + ' 2>&1 | head -4', 20000)
-    .then(function (r) {
-      var m = String(r.stdout).match(/via (\S+)[^\n]* in ([\d.]+ms)/);
-      toast(m ? (name + ': ' + m[2] + ' via ' + m[1]) : (r.stdout.trim() || 'no response'));
-    });
-}
-
-function loadLogs() {
-  exec(ENV + 'tail -n 60 /data/adb/tailscale/run/tailscaled.log 2>/dev/null || echo "(no daemon log)"')
-    .then(function (r) { document.getElementById('logview').textContent = r.stdout.trim() || '(empty)'; });
-  exec(ENV + 'tail -n 60 /data/adb/tailscale/run/runs.log 2>/dev/null || echo "(no service log)"')
-    .then(function (r) { document.getElementById('svclogview').textContent = r.stdout.trim() || '(empty)'; });
-}
-
-/* ===== boot: make content visible before anything else can fail ===== */
-(function () {
-  try { document.getElementById('page').style.display = ''; } catch (e) {}
-})();
-
-function probeBridge() {
-  exec(ENV + 'echo BRIDGE_OK', 4000).then(function (r) {
-    bridgeOK = (r.stdout.indexOf('BRIDGE_OK') !== -1);
-    updateBridgeBanner();
-  });
-}
-
-/* ===== events ===== */
-(function () {
-  try {
-    document.getElementById('gswitch').addEventListener('click', toggleVPN);
-    document.getElementById('loginbtn').addEventListener('click', startLogin);
-    document.getElementById('openurl').addEventListener('click', openLoginUrl);
-    document.getElementById('copyurl').addEventListener('click', copyLoginUrl);
-    document.getElementById('logout').addEventListener('click', doLogout);
-    document.getElementById('refreshlog').addEventListener('click', loadLogs);
-    document.getElementById('bri-retry').addEventListener('click', function () { bridgeOK = false; updateBridgeBanner(); probeBridge(); });
-
-    document.getElementById('pg-settings').addEventListener('click', function (e) {
-      var sw = e.target.closest('.sw');
-      if (sw && sw.id && !sw.classList.contains('busy')) {
-        var want = !sw.classList.contains('on');
-        sw.classList.add('busy');
-        var flag = { 'sw-acceptdns': '--accept-dns', 'sw-acceptroutes': '--accept-routes',
-                     'sw-advexit': '--advertise-exit-node', 'sw-lanaccess': '--exit-node-allow-lan-access' }[sw.id];
-        setPref(flag, want).then(function () { render(); });
-        return;
-      }
-      var opt = e.target.closest('.exitopt');
-      if (opt && !opt.classList.contains('sel')) {
-        setExitNode(opt.dataset.node).then(function () { render(); });
-      }
-    });
-    document.getElementById('peers').addEventListener('click', function (e) {
-      var pr = e.target.closest('.peer');
-      if (pr && pr.dataset.node) pingPeer(pr.dataset.node, pr.dataset.name || pr.dataset.node);
-    });
-  } catch (e) {
-    // never let a failed listener registration blank the app
-    try { console.log('listener error: ' + (e && e.message)); } catch (e2) {}
-  }
-})();
-
-/* ===== nav (kept separate — missing nav must not kill button wiring) ===== */
-(function () {
-  try {
-    document.querySelectorAll('nav .navitem').forEach(function (n) {
-      n.addEventListener('click', function () {
-        document.querySelectorAll('nav .navitem').forEach(function (x) { x.classList.remove('active'); });
-        n.classList.add('active');
-        document.querySelectorAll('.page').forEach(function (x) { x.classList.remove('active'); });
-        document.getElementById(n.dataset.page).classList.add('active');
-        if (n.dataset.page === 'pg-logs') loadLogs();
-      });
-    });
-  } catch (e) {
-    try { console.log('nav error: ' + (e && e.message)); } catch (e2) {}
-  }
-})();
-var pollTimer = null;
-function startPolling() {
-  if (pollTimer) return;
-  refresh();
-  pollTimer = setInterval(function () {
-    if (document.visibilityState === 'visible') refresh();
-  }, 5000);
-}
-
-if (typeof ksu === 'undefined' && location.search.indexOf('mock') === -1) {
-  probeBridge();          // bridge may attach late; banner offers retry
-  startPolling();         // render anyway — never a dead screen
-} else if (location.search.indexOf('mock') !== -1) {
-  window.ksu = {
-    exec: function (cmd, opts, cb) {
-      var out = '';
-      if (/pgrep/.test(cmd)) out = 'UP';
-      else if (/status --json/.test(cmd)) out = JSON.stringify(MOCK_STATUS);
-      else if (/debug prefs/.test(cmd)) out = JSON.stringify(MOCK_PREFS);
-      else if (/tailscale version/.test(cmd)) out = '1.98.8\n';
-      else if (/tailscale login/.test(cmd)) out = 'To authenticate, visit:\n\n\thttps://login.tailscale.com/a/1234567890abcdef\n';
-      else if (/tailscale ping/.test(cmd)) out = 'pong from desktop (100.64.0.2) via DERP(home) in 23ms\n';
-      else if (/tailscaled.log/.test(cmd)) out = 'mock daemon log line 1\nmock daemon log line 2';
-      else if (/runs.log/.test(cmd)) out = 'boot: service starting\nboot: service running';
-      else out = 'RC=0';
-      setTimeout(function () { window[cb](0, out, ''); }, 120);
-    },
-    toast: function () {}
-  };
-  setTimeout(startPolling, 50);
-} else {
-  probeBridge();
-  startPolling();
-}
-
-var MOCK_STATUS = {
-  BackendState: 'Running',
-  Health: [],
-  ExitNodeStatus: { TailscaleIPs: ['100.64.0.3'] },
-  Self: { HostName: 'pixel8', OS: 'linux', UserID: 12345, TailscaleIPs: ['100.64.0.1', 'fd7a:115c:a1e0::1'], Online: true },
-  Peer: {
-    'k1': { HostName: 'desktop', TailscaleIPs: ['100.64.0.2'], Online: true, ExitNodeOption: true },
-    'k2': { HostName: 'vps-exit', TailscaleIPs: ['100.64.0.3'], Online: true, ExitNodeOption: true, ExitNode: true },
-    'k3': { HostName: 'laptop', TailscaleIPs: ['100.64.0.4'], Online: false, LastSeen: '2026-10-18T09:12:00Z' }
-  }
-};
-var MOCK_PREFS = { CorpDNS: true, RouteAll: false, ExitNodeIP: '100.64.0.3', ExitNodeAllowLANAccess: true, AdvertiseRoutes: [] };
-if (location.search.indexOf('login') !== -1) {
-  /* ?mock=login — daemon up, logged out, auth URL pending (fixture for the NeedsLogin UI) */
-  MOCK_STATUS = {
-    BackendState: 'NeedsLogin',
-    AuthURL: 'https://login.tailscale.com/a/13faf79d01c0b4',
-    Health: ['health(warnable=login-state): You are logged out.'],
-    Self: { HostName: 'pixel8', OS: 'android' }
-  };
-}
-</script>
 </body>
 </html>
