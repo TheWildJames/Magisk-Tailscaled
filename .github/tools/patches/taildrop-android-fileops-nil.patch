@@ -1,0 +1,19 @@
+diff --git a/feature/taildrop/ext.go b/feature/taildrop/ext.go
+--- a/feature/taildrop/ext.go
++++ b/feature/taildrop/ext.go
+@@ -176,6 +176,15 @@ func (e *Extension) onChangeProfile(profile ipn.LoginProfileView, _ ipn.PrefsView
+ 			e.setMgrLocked(nil)
+ 			return
+ 		}
++
++		if newFileOps == nil {
++			// Headless GOOS=android builds have no FileOps implementation
++			// (fileops_fs.go is !android; the Android app injects SAF ops
++			// via cgo). Disable Taildrop instead of panicking on login.
++			e.logf("FileOps unavailable on this platform; Taildrop disabled")
++			e.setMgrLocked(nil)
++			return
++		}
+ 
+ 		var err error
+ 		if fops, err = newFileOps(fileRoot); err != nil {

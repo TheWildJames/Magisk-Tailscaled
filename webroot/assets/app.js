@@ -45,12 +45,15 @@ if (isMock) {
       Self: { HostName: 'pixel8', OS: 'android' }
     };
   }
+  var MOCK_DOWN = location.search.indexOf('down') !== -1;
   window.ksu = {
     exec: function (cmd, opts, cb) {
       var out = '';
-      if (cmd.indexOf('@@M1') !== -1) {
-        out = '@@M1\nUP\n@@M2\n1.104.1\n@@M3\n' + JSON.stringify(MOCK_STATUS) + '\n@@M4\n' +
-          (MOCK_STATUS.BackendState === 'Running' ? JSON.stringify(MOCK_PREFS) : '') + '\n@@M5';
+      if (cmd.indexOf('@@M2') !== -1) {
+        out = MOCK_DOWN
+          ? '@@M2\n1.104.1\n@@M3\n\n@@M4\n\n@@M5'
+          : '@@M2\n1.104.1\n@@M3\n' + JSON.stringify(MOCK_STATUS) + '\n@@M4\n' +
+            (MOCK_STATUS.BackendState === 'Running' ? JSON.stringify(MOCK_PREFS) : '') + '\n@@M5';
       } else if (/grep .version=/.test(cmd)) { out = 'version=9.9.9-mock\n'; }
       else if (/tailscale login/.test(cmd)) { out = 'To authenticate, visit:\n\n\thttps://login.tailscale.com/a/1234567890abcdef\n'; }
       else if (/tailscale ping/.test(cmd)) { out = 'pong from desktop (100.64.0.2) via DERP(home) in 23ms\n'; }
@@ -141,32 +144,36 @@ var STATE_LABEL = {
   NeedsMachineAuth: 'Machine auth', Stopped: 'Disconnected', NoState: 'No state'
 };
 
-/* ===== combined poll: one exec, @@M markers ===== */
+/* ===== combined poll: one exec, @@M markers =====
+   Daemon liveness = `tailscale status --json` returning parseable JSON.
+   (pgrep is useless here: the service script's own cmdline contains
+   "tailscaled.service", so it matches when the daemon is DEAD — leaving
+   the UI in a "Not logged in / everything —" limbo exactly like a real
+   daemon crash showed.) */
 function parsePoll(out) {
   var idx = {};
-  ['M1', 'M2', 'M3', 'M4', 'M5'].forEach(function (m) { idx[m] = out.indexOf('@@' + m); });
+  ['M2', 'M3', 'M4', 'M5'].forEach(function (m) { idx[m] = out.indexOf('@@' + m); });
   function between(a, b) {
     if (idx[a] < 0) return '';
-    var s = idx[a] + a.length + 3;   /* skip '@@M1\n' */
+    var s = idx[a] + a.length + 3;   /* skip '@@M2\n' */
     var e = idx[b] >= 0 ? idx[b] : out.length;
     return out.slice(s, e).trim();
   }
-  return { up: between('M1', 'M2') === 'UP', ver: between('M2', 'M3'), status: between('M3', 'M4'), prefs: between('M4', 'M5') };
+  return { ver: between('M2', 'M3'), status: between('M3', 'M4'), prefs: between('M4', 'M5') };
 }
 
 function poll() {
   var cmd = ENV +
-    'echo @@M1; pgrep -f "[t]ailscaled" >/dev/null 2>&1 && echo UP || echo DOWN; ' +
     'echo @@M2; tailscale version 2>/dev/null | head -n 1; ' +
     'echo @@M3; tailscale status --json 2>/dev/null; ' +
     'echo @@M4; tailscale debug prefs --json 2>/dev/null; ' +
     'echo @@M5';
   return exec(cmd, 20000).then(function (r) {
     var p = parsePoll(r.stdout);
-    daemonUp = p.up;
+    try { latest = p.status ? JSON.parse(p.status) : null; } catch (e) { latest = null; }
+    daemonUp = !!latest;
     if (p.ver && p.ver !== versionStr) { versionStr = p.ver; renderVersion(); }
-    try { latest = (daemonUp && p.status) ? JSON.parse(p.status) : null; } catch (e) { latest = null; }
-    try { prefs = (daemonUp && p.status && p.prefs) ? JSON.parse(p.prefs) : null; } catch (e) { prefs = null; }
+    try { prefs = (latest && p.prefs) ? JSON.parse(p.prefs) : null; } catch (e) { prefs = null; }
 
     var backend = latest ? latest.BackendState : null;
     if (daemonUp && backend === 'Running' && lastBackend && lastBackend !== 'Running') {

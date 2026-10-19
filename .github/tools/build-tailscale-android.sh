@@ -56,6 +56,22 @@ mkdir -p "$WORKDIR/src"
 tar -xzf "$WORKDIR/src.tar.gz" -C "$WORKDIR/src" --strip-components=1
 cd "$WORKDIR/src"
 
+# Carried patches (target: v1.104.x — drop once the fix lands upstream).
+# taildrop-android-fileops-nil.patch: upstream bug — on headless GOOS=android
+# builds `newFileOps` is never assigned (fileops_fs.go is !android; the
+# official Android app injects SAF FileOps via cgo). First successful login
+# hits the nil func var in onChangeProfile (ext.go:181) and the daemon
+# panics: "invalid memory address or nil pointer dereference" right after
+# authRoutine-success. The guard disables Taildrop (already non-functional
+# headless) instead of crashing.
+PATCHES_DIR="$SCRIPT_DIR/patches"
+if [ -d "$PATCHES_DIR" ]; then
+  for p in "$PATCHES_DIR"/*.patch; do
+    echo "Applying patch: $(basename "$p")"
+    patch -p1 --no-backup-if-mismatch < "$p"
+  done
+fi
+
 # NOTE: the ssh server feature is omitted on Android (official tailscale
 # excludes ssh/tailssh on android via `linux && !android`; the module does
 # not ship the mock `getent` it needs either). `tailscale ssh` client and
