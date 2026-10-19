@@ -1,3 +1,12 @@
+## v2.6.0.0
+
+- **WebUI: follows the manager's exact theme** — imports `colors.css`/`insets.css` from the manager's MUI host (KSU-Next/Magisk-on-KSU/MMRL), so the UI picks up your manager's Monet palette and real status/nav-bar insets instead of static guesses; falls back to its own M3 palette when served without one.
+- **Adaptive polling** — 4s while an action is in flight or state just changed, 15s when idle, never while the page is hidden or a dialog is open; instant re-sync when you come back to the page (pageshow/focus/visibility).
+- **Android back button works** (MMRL WebUI X): back closes the log terminal first, then returns to Home, then exits — via `webroot/config.json` (`backInterceptor: javascript`) which now ships in the zip (the `*.json` exclude was previously eating it).
+- **Dialog lockout** — with a dialog open, touches/scroll behind it are blocked (Tricky-Addon pattern), so a stray tap can't flip a switch underneath.
+- **Settings & service**: Start-tailscaled-on-boot toggle (`NOBOOT` marker checked by `service.sh`), daemon health warnings surfaced on Home, in-flight progress bar, action button `pgrep` now matches the daemon binary's cmdline (not the service script's).
+- Synced with a survey of the ecosystem's best WebUIs (Tricky-Addon, zygisk-detach, bindhosts, zygisk-next): canonical bridge exec wrapper, batched shell work, guarded DOM updates, no per-render event rebinding.
+
 ## v2.5.1.0
 
 - 501dead Fix daemon panic on login: taildrop newFileOps nil on headless Android + honest WebUI crash state

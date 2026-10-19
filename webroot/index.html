@@ -46,7 +46,14 @@
                         <md-switch id="main-switch" icons></md-switch>
                         <h2 id="status-header">Tailscale</h2>
                         <p id="status-text">Initializing…</p>
+                        <p id="status-hint" class="status-hint"></p>
                     </div>
+                    <md-linear-progress id="action-progress" indeterminate hidden></md-linear-progress>
+                </div>
+
+                <!-- Health warnings (from status --json) -->
+                <div class="box health-box" id="health-box" hidden>
+                    <div id="health-list"></div>
                 </div>
 
                 <!-- Connection info -->
@@ -105,6 +112,14 @@
                 <div class="box control-panel">
                     <div><h3>Settings</h3></div>
                     <div class="box-content">
+                        <div class="list-item" id="row-boot">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M440-120v-240h80v240h-80Zm280-120q-14 14-33 14t-33-14q-14-14-14-33t14-33l51-51H320q-26 0-43-17t-17-43V-60L60-236q-14-14-14-33t14-33q14-14 33-14t33 14l51 51v-281q0-26 17-43t43-17q26 0 43 17t17 43V-60l51-51q14-14 33-14t33 14q14 14 14 33t-14 33L720-240ZM206-720q11-57 47-94t95-47l-8-40q-2-12 5-19t16-5q9 2 13 9t5 15l6 31q10 2 20 3t20-1q10-2 19-3t20-3l8 40q-59 10-95 47t-47 94l-30 240q-2 12-9 19t-16 5q-9-2-13-9t-5-15l-12-96 12 96q2 12-5 19t-16 5q-9-2-13-9t-5-15l-30-240Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Start tailscaled on boot<small id="boot-sub">Daemon auto-starts after reboot</small></span>
+                            <md-switch icons class="soft-disabled" id="sw-boot"></md-switch>
+                        </div>
                         <div class="list-item" id="row-accept-dns">
                             <md-ripple></md-ripple>
                             <md-icon class="leading-icon">

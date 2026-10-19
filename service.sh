@@ -1,5 +1,9 @@
 #!/system/bin/sh
 # this service later will moved to General Scripts for enabling and disabling tailscaled service when default state is disabled
+# WebUI boot toggle: skip daemon start when the user disabled autostart
+if [ -e /data/adb/tailscale/NOBOOT ]; then
+    exit 0
+fi
 # wait for boot to complete
 while [ "$(getprop sys.boot_completed)" != 1 ]; do
     sleep 1

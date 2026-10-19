@@ -41,11 +41,14 @@ After installation, the Tailscale daemon (`tailscaled`) will run automatically o
 
 On KernelSU (and MMRL) the module ships a **WebUI** — open it with the **WebUI** button in the manager:
 
-- Connect / disconnect toggle (daemon + `tailscale up`/`down`)
-- Tailscale IPs, host name, exit node, backend state
-- Live tailnet device list (online status, IPs, exit nodes)
+- Connect / disconnect toggle (daemon + `tailscale up`/`down`) with in-flight progress bar
+- Tailscale IPs, host name, exit node, backend state — all from one status snapshot, plus the daemon's own health warnings
+- Live tailnet device list (online status, IPs, exit nodes, tap to ping)
 - Login URL flow (opens the browser), logout
-- Daemon log viewer (last 40 lines)
+- Settings: accept DNS / accept routes / advertise exit node / LAN access, exit-node picker, restart service
+- **Start tailscaled on boot** toggle (`/data/adb/tailscale/NOBOOT` marker; VPN on/off itself persists across reboots in the tailscale state file)
+- Daemon log viewer
+- The module description in the manager tracks live state (⚡ VPN connected / ⚠ login required / ⛔ stopped)
 
 The **Action** button in the manager toggles Tailscale completely on/off:
 

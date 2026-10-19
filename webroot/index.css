@@ -2,6 +2,9 @@
    adapted for the Magisk-Tailscaled module. Material Design 3 tokens inline;
    managers may override via injected CSS vars (--primary etc. — MUI convention). */
 
+@import url("https://mui.kernelsu.org/internal/insets.css");
+@import url("https://mui.kernelsu.org/internal/colors.css");
+
 :root {
     --top-inset: var(--window-inset-top, 0px);
     --bottom-inset: var(--window-inset-bottom, 0px);
@@ -373,8 +376,67 @@
         display: none !important;
     }
 
+    /* Kill double-tap-zoom delay in WebView on all tappables */
+    #status-box,
+    .list-item,
+    .bottom-bar-item,
+    .peer-row,
+    .radio-row,
+    .prompt,
+    md-switch,
+    md-button,
+    md-text-button,
+    md-filled-button,
+    md-outlined-button,
+    md-icon-button {
+        touch-action: manipulation;
+    }
+
     body.has-banner .page-view {
         top: 168px;
+    }
+
+    /* ===== v2.6: action progress, status hint, health warnings ===== */
+    #action-progress {
+        width: 100%;
+        --md-linear-progress-active-indicator-height: 4px;
+    }
+
+    .status-hint {
+        margin: 2px 0 0 0;
+        font-size: 12px;
+        line-height: 1.35;
+        color: var(--md-sys-color-on-secondary-container);
+        opacity: 0.8;
+        min-height: 16px;
+    }
+
+    .health-box {
+        background-color: var(--md-sys-color-error-container);
+        color: var(--md-sys-color-on-error-container);
+    }
+
+    .health-box h2 {
+        color: var(--md-sys-color-on-error-container);
+    }
+
+    .health-item {
+        padding: 6px 0;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    .health-item + .health-item {
+        border-top: 1px solid color-mix(in srgb, var(--md-sys-color-on-error-container) 20%, transparent);
+    }
+
+    #status-box.busy-press {
+        pointer-events: none;
+    }
+
+    .list-item.disabled {
+        opacity: 0.45;
+        pointer-events: none;
     }
 }
 
@@ -640,4 +702,11 @@ md-switch.soft-disabled {
 
 .radio-row .peer-sub {
     flex-grow: 1;
+}
+
+/* dialog-open lockout (Tricky-Addon pattern): block stray touches/scroll
+   behind an open md-dialog. */
+body.dlg {
+    overflow: hidden;
+    touch-action: none;
 }

@@ -41,7 +41,7 @@ if (isMock) {
     MOCK_STATUS = {
       BackendState: 'NeedsLogin',
       AuthURL: 'https://login.tailscale.com/a/13faf79d01c0b4',
-      Health: ['You are logged out.'],
+      Health: ['You are logged out. The last login error was: register request: http 410: auth path not found'],
       Self: { HostName: 'pixel8', OS: 'android' }
     };
   }
@@ -135,9 +135,16 @@ function setSwitch(id, on) {
 /* ===== state ===== */
 var latest = null, prefs = null, daemonUp = false, toggling = false;
 var loginUrl = '', loginPending = false, versionStr = '', lastBackend = null;
+var restartBusy = false, logoutBusy = false, exitBusy = false, prefBusy = false, bootBusy = false;
+var bootOn = true, healthSig = '\u0000', lastDescKey = null;
 var peersSig = '', urlHtml = '';
 var logsOpen = false, logsTimer = null;
 var dialogOpen = false;
+
+/* any in-flight root action → progress bar, block double-taps */
+function anyBusy() {
+  return toggling || loginPending || restartBusy || logoutBusy || exitBusy || prefBusy || bootBusy;
+}
 
 var STATE_LABEL = {
   Running: 'Connected', Starting: 'Starting…', NeedsLogin: 'Login required',
@@ -176,36 +183,147 @@ function poll() {
     try { prefs = (latest && p.prefs) ? JSON.parse(p.prefs) : null; } catch (e) { prefs = null; }
 
     var backend = latest ? latest.BackendState : null;
+    if (anyBusy() || (backend && lastBackend && backend !== lastBackend)) {
+      /* action in flight or state transition — poll fast for a while */
+      lastActivity = Date.now();
+    }
     if (daemonUp && backend === 'Running' && lastBackend && lastBackend !== 'Running') {
       showPrompt('Logged in');
     }
     lastBackend = backend;
     render();
+    maybeUpdateDesc(backend);
   }).catch(function () { render(); });
 }
 
+/* ===== adaptive polling =====
+   Surveyed WebUIs (Tricky-Addon, zygisk-detach) don't poll at all — they
+   refresh on action. A VPN's state CAN change outside the UI (browser
+   login finishing, exit node coming online), so we poll, but adaptively:
+   4s while an action is in flight or within 30s of a state change,
+   15s when idle, never while hidden or a dialog is open. */
+var lastActivity = 0, pollTimer = null;
+function schedulePoll(delay) {
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = setTimeout(function () {
+    pollTimer = null;
+    if (document.visibilityState === 'visible' && !dialogOpen) {
+      poll().then(function () {
+        var idleMs = Date.now() - lastActivity;
+        schedulePoll(idleMs < 30000 ? 4000 : 15000);
+      });
+    } else {
+      schedulePoll(2000);
+    }
+  }, delay);
+}
+
+/* ===== dialog-open lockout (Tricky-Addon pattern) =====
+   While a dialog is up, block stray touches/scroll behind it. */
+function setDialogOpen(v) {
+  dialogOpen = v;
+  document.body.classList.toggle('dlg', v);
+}
+
+/* ===== module.prop description writer =====
+   Mirrors the state the WebUI shows into the manager's module list
+   ("[ ⏲ HH:MM | ⚡ VPN connected ] <original description>"). Writes
+   only when the state actually changes — never on every poll. */
+var DESC_MSG = {
+  stopped: '⛔ tailscaled stopped ] ',
+  connected: '⚡ VPN connected ] ',
+  login: '⚠ login required ] ',
+  starting: '⏳ starting ] ',
+  disconnected: '⛔ VPN disconnected ] ',
+  machineauth: '⏳ machine auth ] '
+};
+function maybeUpdateDesc(backend) {
+  if (isMock) return;
+  var key;
+  if (!daemonUp) key = 'stopped';
+  else if (backend === 'Running') key = 'connected';
+  else if (backend === 'NeedsLogin' || backend === 'NoState') key = 'login';
+  else if (backend === 'Starting') key = 'starting';
+  else if (backend === 'Stopped') key = 'disconnected';
+  else if (backend === 'NeedsMachineAuth') key = 'machineauth';
+  else return;
+  if (key === lastDescKey) return;
+  lastDescKey = key;
+  var msg = DESC_MSG[key];
+  /* keep the same sed shape as the old v2 writer so both stay
+     compatible: replaces any leading "[ ... ]" prefix, keeps the
+     original description text after it */
+  exec(ENV + "T=$(date +%H:%M); sed -Ei \"s/^description=(\\[.*][[:space:]]*)?/description=[ ⏲ $T | " + msg + "/\" " + MODPROP + " 2>/dev/null; echo DESC_OK", 8000);
+}
+
+/* ===== boot autostart flag (NOBOOT marker file) ===== */
+function paintBoot() {
+  setSwitch('sw-boot', bootOn);
+  setText('boot-sub', bootOn ? 'Daemon auto-starts after reboot' : 'Disabled — daemon won\u2019t start at boot');
+}
+function readBootFlag() {
+  exec(ENV + '[ -e /data/adb/tailscale/NOBOOT ] && echo NB || echo OK', 8000).then(function (r) {
+    bootOn = String(r.stdout).trim() !== 'NB';
+    paintBoot();
+  });
+}
+function toggleBoot() {
+  if (bootBusy) return;
+  bootBusy = true; render();
+  var cmd = bootOn
+    ? ENV + 'touch /data/adb/tailscale/NOBOOT; echo NBON'
+    : ENV + 'rm -f /data/adb/tailscale/NOBOOT; echo NBOFF';
+  exec(cmd, 8000).then(function (r) {
+    bootBusy = false;
+    bootOn = !bootOn;
+    paintBoot();
+    showPrompt(bootOn ? 'tailscaled will start on boot' : 'tailscaled won\u2019t start on boot');
+    render();
+  });
+}
+
 /* ===== render ===== */
+/* Single source of truth for the status phrasing — used by the
+   big switch card, the Connection row, and the module description
+   written back into module.prop, so nothing can show a mismatched state. */
+function statusLine() {
+  if (anyBusy()) return { text: 'Working…', hint: '' };
+  if (!daemonUp) return { text: 'Service stopped — tap to start', hint: 'tailscaled is not running' };
+  var backend = latest ? latest.BackendState : null;
+  if (backend === 'Running') return { text: 'Connected — tap to disconnect', hint: bootOn ? 'Reconnects automatically on boot' : 'tailscaled won\u2019t start at boot until this is turned back on' };
+  if (backend === 'NeedsLogin' || backend === 'NoState') return { text: 'Login required — tap Log in below', hint: 'tailscaled is running' };
+  if (backend === 'Starting') return { text: 'Starting…', hint: 'Connecting to your tailnet' };
+  if (backend === 'NeedsMachineAuth') return { text: 'Waiting for machine authorization…', hint: 'Approve this device in the Tailscale admin console' };
+  if (backend === 'Stopped') return { text: 'Disconnected — tap to connect', hint: 'tailscaled is running' };
+  return { text: STATE_LABEL[backend] || backend, hint: '' };
+}
+
 function render() {
   var st = latest;
   var backend = st ? (st.BackendState || 'NoState') : null;
   var on = backend === 'Running';
-  var needsLogin = daemonUp && backend === 'NeedsLogin';
+  var needsLogin = daemonUp && (backend === 'NeedsLogin' || backend === 'NoState');
+  var busy = anyBusy();
 
   if (needsLogin && st && st.AuthURL) loginUrl = String(st.AuthURL);
   if (!needsLogin) loginUrl = '';
 
   setSwitch('main-switch', on);
 
-  var stat;
-  if (toggling) stat = 'Working…';
-  else if (!daemonUp) stat = 'Service stopped — tap to start';
-  else if (on) stat = 'Connected — tap to disconnect';
-  else if (needsLogin) stat = 'Login required — tap Log in below';
-  else if (backend === 'Starting') stat = 'Starting…';
-  else if (backend === 'NeedsMachineAuth') stat = 'Waiting for machine authorization…';
-  else if (backend === 'Stopped') stat = 'Disconnected — tap to connect';
-  else stat = 'Not logged in';
-  setText('status-text', stat);
+  /* In-flight action feedback: linear progress + disable competing
+     controls so double-taps can't stack root execs. */
+  setHidden('action-progress', !busy);
+  $('status-box').classList.toggle('busy-press', busy);
+  $('login-btn').disabled = busy;
+  $('open-url-btn').disabled = busy || !loginUrl;
+  $('copy-url-btn').disabled = busy || !loginUrl;
+  $('restart-row').classList.toggle('disabled', busy);
+  $('logout-row').classList.toggle('disabled', busy || !daemonUp || needsLogin);
+  $('exitnode-row').classList.toggle('disabled', busy || !on);
+
+  var sl = statusLine();
+  setText('status-text', sl.text);
+  setText('status-hint', sl.hint);
 
   /* login box */
   setHidden('login-box', !needsLogin);
@@ -221,6 +339,18 @@ function render() {
   setText('kv-ip6', (on && s && s.TailscaleIPs && s.TailscaleIPs[1]) || '—');
   setText('kv-exit', on && st && st.ExitNodeStatus ? ((st.ExitNodeStatus.TailscaleIPs && st.ExitNodeStatus.TailscaleIPs[0]) || 'in use') : 'none');
   setText('kv-state', daemonUp ? (STATE_LABEL[backend] || backend || '—') : 'daemon stopped');
+
+  /* health warnings straight from the daemon (login errors etc.) —
+     the one place they're visible outside the raw log */
+  var health = (st && st.Health && st.Health.length) ? st.Health : null;
+  var hsig = health ? health.join('|') : '';
+  if (hsig !== healthSig) {
+    healthSig = hsig;
+    $('health-list').innerHTML = health
+      ? health.map(function (h) { return '<div class="health-item">' + esc(h) + '</div>'; }).join('')
+      : '';
+  }
+  setHidden('health-box', !health);
 
   /* devices page */
   setText('kv-host', (s && s.HostName) || '—');
@@ -362,11 +492,15 @@ var PREF_MAP = {
   'row-lan-access': '--exit-node-allow-lan-access'
 };
 function setPref(flag, on) {
+  if (prefBusy) return;
+  prefBusy = true; render();
   var val = (flag === '--advertise-exit-node')
     ? (on ? '--advertise-exit-node' : '--advertise-exit-node=false')
     : (flag + '=' + (on ? 'true' : 'false'));
   return exec(ENV + 'tailscale set ' + val + ' 2>&1; echo RC=$?', 20000).then(function (r) {
+    prefBusy = false;
     if (!/RC=0/.test(r.stdout)) showPrompt('Setting failed — check logs', false);
+    else showPrompt(on ? 'Setting on' : 'Setting off');
     poll();
   });
 }
@@ -393,11 +527,14 @@ function openExitDialog() {
       '<md-radio name="exitopt" ' + (sel ? 'checked' : '') + '></md-radio></div>';
   }).join('');
   box.innerHTML = html;
-  dialogOpen = true;
+  setDialogOpen(true);
   $('exitnode-dialog').show();
 }
 function setExitNode(node) {
+  if (exitBusy) return;
+  exitBusy = true;
   exec(ENV + 'tailscale set --exit-node=' + (node || '') + ' 2>&1; echo RC=$?', 20000).then(function (r) {
+    exitBusy = false;
     if (!/RC=0/.test(r.stdout)) showPrompt('Failed to set exit node — check logs', false);
     else showPrompt(node ? 'Exit node set' : 'Exit node cleared');
     poll();
@@ -405,20 +542,27 @@ function setExitNode(node) {
 }
 
 function restartService() {
+  if (restartBusy) return;
+  restartBusy = true; render();
   showPrompt('Restarting tailscaled…', true, 8000);
   exec(ENV + SERVICE + ' restart >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
+    restartBusy = false;
     showPrompt(/RC=0/.test(r.stdout) ? 'Service restarted' : 'Restart issue — check logs', /RC=0/.test(r.stdout));
     poll();
   });
 }
 
 function doLogout() {
-  dialogOpen = true;
+  setDialogOpen(true);
   $('logout-dialog').show();
 }
 function confirmLogout() {
+  if (logoutBusy) return;
+  logoutBusy = true; render();
   showPrompt('Logging out…', true, 8000);
   exec(ENV + 'tailscale logout >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
+    logoutBusy = false;
+    lastDescKey = null;
     showPrompt(/RC=0/.test(r.stdout) ? 'Logged out' : 'Logout issue — check logs', /RC=0/.test(r.stdout));
     loginUrl = '';
     poll();
@@ -504,16 +648,17 @@ function wireEvents() {
   });
   $('restart-row').addEventListener('click', restartService);
   $('logout-row').addEventListener('click', doLogout);
-  $('logout-cancel').addEventListener('click', function () { dialogOpen = false; $('logout-dialog').close(); });
+  $('logout-cancel').addEventListener('click', function () { setDialogOpen(false); $('logout-dialog').close(); });
   $('logout-confirm').addEventListener('click', function () {
-    $('logout-dialog').close(); dialogOpen = false; confirmLogout();
+    $('logout-dialog').close(); setDialogOpen(false); confirmLogout();
   });
   $('exitnode-row').addEventListener('click', openExitDialog);
-  $('exitnode-close').addEventListener('click', function () { dialogOpen = false; $('exitnode-dialog').close(); });
+  $('row-boot').addEventListener('click', toggleBoot);
+  $('exitnode-close').addEventListener('click', function () { setDialogOpen(false); $('exitnode-dialog').close(); });
   $('exitnode-list').addEventListener('click', function (e) {
     var row = e.target.closest ? e.target.closest('.radio-row') : null;
     if (!row) return;
-    dialogOpen = false;
+    setDialogOpen(false);
     $('exitnode-dialog').close();
     setExitNode(row.getAttribute('data-node') || '');
   });
@@ -545,6 +690,8 @@ function boot() {
   document.querySelectorAll('[unresolved]').forEach(function (el) { el.removeAttribute('unresolved'); });
   wireEvents();
   renderVersion();
+  var pg = location.search.match(/page=(home|devices|more)/);
+  if (pg) navTo(pg[1]);
 
   exec(ENV + 'grep "^version=" ' + MODPROP + ' 2>/dev/null | head -1 | cut -d= -f2', 8000).then(function (r) {
     var v = r.stdout.trim();
@@ -558,10 +705,25 @@ function boot() {
     bridgeOK = true;
     updateBanner();
   }
-  poll();
-  setInterval(function () {
-    if (document.visibilityState === 'visible' && !dialogOpen) poll();
-  }, 4000);
+  readBootFlag();
+  schedulePoll(0);
+
+  /* Re-sync immediately when the manager brings the page back to front. */
+  window.addEventListener('pageshow', function () { schedulePoll(200); });
+  window.addEventListener('focus', function () { schedulePoll(200); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') schedulePoll(200);
+  });
+
+  /* MMRL WebUI X back interception (backInterceptor: "javascript"):
+     close the log terminal first, then return to Home, then exit. */
+  window.addEventListener('back', function () {
+    if (logsOpen) { closeLogs(); return; }
+    var active = document.querySelector('.page-view[data-active="true"]');
+    var onHome = !active || active.id === 'page-home';
+    if (!onHome) { navTo('home'); return; }
+    if (typeof webui !== 'undefined' && webui && typeof webui.exit === 'function') webui.exit();
+  });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -23,7 +23,11 @@ SERVICE="${TS_DIR}/scripts/tailscaled.service"
 }
 
 daemon_running() {
-	busybox pgrep -f "tailscaled" >/dev/null 2>&1
+	# match the daemon binary's own cmdline ("tailscaled --tun=..."), NOT the
+	# tailscaled.service script — a bare "tailscaled" pattern matches the
+	# script's cmdline too, so the action button can toggle the wrong way
+	# when the daemon is dead but the script is alive.
+	busybox pgrep -f "tailscaled --tun" >/dev/null 2>&1
 }
 
 backend_state() {

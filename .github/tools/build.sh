@@ -45,9 +45,13 @@ done
 echo ""
 echo "Creating zip without binaries..."
 zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" "tailscale/bin/*" ".shellcheckrc" >/dev/null
+# *.json is excluded above (update.json etc.) but the WebUI config is REQUIRED
+# by MMRL (WebUI X: backInterceptor, CSP) — add it back explicitly.
+zip -9 "${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip" webroot/config.json >/dev/null
 
 echo "Creating zip with binaries..."
 zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" ".shellcheckrc" >/dev/null
+zip -9 "${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip" webroot/config.json >/dev/null
 
 rm -f "$BIN_DIR"/*
 
