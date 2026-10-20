@@ -1,3 +1,8 @@
+## v2.6.1.0
+
+- **Login no longer looks frozen** — `startLogin()` shows the progress bar + "Generating login URL…" text immediately on tap, instead of a 20s snackbar that could expire before `tailscale login` finished. The menu stays responsive (buttons disabled with clear "working" feedback) until the auth URL is ready.
+- Note: the browser login page itself loads at the speed of your network / the Tailscale control plane — that part isn't in the module's control.
+
 ## v2.6.0.0
 
 - **WebUI: follows the manager's exact theme** — imports `colors.css`/`insets.css` from the manager's MUI host (KSU-Next/Magisk-on-KSU/MMRL), so the UI picks up your manager's Monet palette and real status/nav-bar insets instead of static guesses; falls back to its own M3 palette when served without one.
