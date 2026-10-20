@@ -1,3 +1,10 @@
+## v2.6.4.0
+
+- **No more frozen UI on start/stop** — the root cause was `ksu.exec(cmd)` being SYNCHRONOUS per the KernelSU-Next API docs: it blocks the WebView UI thread until the command finishes, so the busy overlay never had a chance to paint. Fixed two ways:
+  1. Removed the sync fallback in `exec()` — if the callback bridge form fails, it reports an error instead of blocking on `ksu.exec(cmd)`.
+  2. Every long exec (start, stop, restart, logout, exit node, settings, boot toggle) is now wrapped in `setTimeout(..., 0)` so the browser paints the busy overlay **before** `ksu.exec` runs. You see the spinner + "Starting…" immediately on tap, not after the command finishes.
+- **All 7 action functions yield to the browser** before their root exec: toggleVPN, startLogin, setPref, setExitNode, restartService, confirmLogout, toggleBoot.
+
 ## v2.6.3.0
 
 - **Start button actually works** — the `main-switch` toggle (Material switch in shadow DOM) never bubbled its click to `status-box`, so tapping the top toggle looked like it did nothing. It now has its own click handler wired to start/stop, so tapping the switch actually toggles the VPN.

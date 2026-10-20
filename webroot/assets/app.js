@@ -90,13 +90,7 @@ function exec(cmd, timeoutMs) {
       ksu.exec(cmd, '{}', cbName);
     } catch (e) {
       try { delete window[cbName]; } catch (e2) {}
-      try {
-        var out = String(ksu.exec(cmd) || '');
-        if (!bridgeOK) { bridgeOK = true; updateBanner(); }
-        done({ errno: 0, stdout: out, stderr: '' });
-      } catch (e2) {
-        done({ errno: -1, stdout: '', stderr: String(e2) });
-      }
+      done({ errno: -1, stdout: '', stderr: String(e) });
     }
   });
 }
@@ -270,16 +264,18 @@ function readBootFlag() {
 function toggleBoot() {
   if (bootBusy) return;
   bootBusy = true; render();
-  var cmd = bootOn
-    ? ENV + 'touch /data/adb/tailscale/NOBOOT; echo NBON'
-    : ENV + 'rm -f /data/adb/tailscale/NOBOOT; echo NBOFF';
-  exec(cmd, 8000).then(function (r) {
+  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    var cmd = bootOn
+      ? ENV + 'touch /data/adb/tailscale/NOBOOT; echo NBON'
+      : ENV + 'rm -f /data/adb/tailscale/NOBOOT; echo NBOFF';
+    exec(cmd, 8000).then(function (r) {
     bootBusy = false;
     bootOn = !bootOn;
     paintBoot();
     showPrompt(bootOn ? 'tailscaled will start on boot' : 'tailscaled won\u2019t start on boot');
-    render();
-  });
+    });
+  }, 0);
 }
 
 /* ===== render ===== */
@@ -437,16 +433,19 @@ function toggleVPN() {
   if (toggling) return;
   var on = latest && latest.BackendState === 'Running';
   toggling = true; render();
-  var cmd = on
-    ? ENV + 'tailscale down >/dev/null 2>&1; echo RC=$?'
-    : ENV + SERVICE + ' start >/dev/null 2>&1; R=$?; sleep 2; timeout 8 tailscale up >/dev/null 2>&1 || true; echo RC=$R';
-  exec(cmd, 45000).then(function (r) {
+  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    var cmd = on
+      ? ENV + 'tailscale down >/dev/null 2>&1; echo RC=$?'
+      : ENV + SERVICE + ' start >/dev/null 2>&1; R=$?; sleep 2; timeout 8 tailscale up >/dev/null 2>&1 || true; echo RC=$R';
+    exec(cmd, 45000).then(function (r) {
     toggling = false;
     var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
     showPrompt(on ? (rc === '0' ? 'Disconnected' : 'Disconnect failed — check logs')
       : (rc === '0' ? 'Starting…' : 'Start failed — check logs'), rc === '0');
     poll();
-  });
+    });
+  }, 0);
 }
 
 function startLogin() {
@@ -462,8 +461,10 @@ function startLogin() {
   $('login-url-row').removeAttribute('hidden');
   setText('login-url', 'Generating login URL…');
   render();
-  exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
-    .then(function (r) {
+  /* yield to the browser so the overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
+      .then(function (r) {
       loginPending = false;
       $('login-progress').setAttribute('hidden', '');
       loginUrl = r.stdout.trim();
@@ -474,6 +475,7 @@ function startLogin() {
         showPrompt('Could not get a login URL — try: su -c tailscale login', false, 5000);
       }
     });
+  }, 0);
 }
 function showLoginUrlReady() {
   $('login-url-row').removeAttribute('hidden');
@@ -517,12 +519,14 @@ function setPref(flag, on) {
   var val = (flag === '--advertise-exit-node')
     ? (on ? '--advertise-exit-node' : '--advertise-exit-node=false')
     : (flag + '=' + (on ? 'true' : 'false'));
-  return exec(ENV + 'tailscale set ' + val + ' 2>&1; echo RC=$?', 20000).then(function (r) {
+  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    exec(ENV + 'tailscale set ' + val + ' 2>&1; echo RC=$?', 20000).then(function (r) {
     prefBusy = false;
     if (!/RC=0/.test(r.stdout)) showPrompt('Setting failed — check logs', false);
     else showPrompt(on ? 'Setting on' : 'Setting off');
-    poll();
-  });
+    });
+  }, 0);
 }
 
 function openExitDialog() {
@@ -552,24 +556,29 @@ function openExitDialog() {
 }
 function setExitNode(node) {
   if (exitBusy) return;
-  exitBusy = true;
-  exec(ENV + 'tailscale set --exit-node=' + (node || '') + ' 2>&1; echo RC=$?', 20000).then(function (r) {
+  exitBusy = true; render();
+  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    exec(ENV + 'tailscale set --exit-node=' + (node || '') + ' 2>&1; echo RC=$?', 20000).then(function (r) {
     exitBusy = false;
     if (!/RC=0/.test(r.stdout)) showPrompt('Failed to set exit node — check logs', false);
     else showPrompt(node ? 'Exit node set' : 'Exit node cleared');
     poll();
   });
+  }, 0);
 }
 
 function restartService() {
   if (restartBusy) return;
   restartBusy = true; render();
   showPrompt('Restarting tailscaled…', true, 8000);
-  exec(ENV + SERVICE + ' restart >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
+  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    exec(ENV + SERVICE + ' restart >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
     restartBusy = false;
     showPrompt(/RC=0/.test(r.stdout) ? 'Service restarted' : 'Restart issue — check logs', /RC=0/.test(r.stdout));
-    poll();
-  });
+    });
+  }, 0);
 }
 
 function doLogout() {
@@ -580,13 +589,15 @@ function confirmLogout() {
   if (logoutBusy) return;
   logoutBusy = true; render();
   showPrompt('Logging out…', true, 8000);
-  exec(ENV + 'tailscale logout >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
+  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+  setTimeout(function () {
+    exec(ENV + 'tailscale logout >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
     logoutBusy = false;
     lastDescKey = null;
     showPrompt(/RC=0/.test(r.stdout) ? 'Logged out' : 'Logout issue — check logs', /RC=0/.test(r.stdout));
     loginUrl = '';
-    poll();
-  });
+    });
+  }, 0);
 }
 
 /* ===== logs terminal ===== */
