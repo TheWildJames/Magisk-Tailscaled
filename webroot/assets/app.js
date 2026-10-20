@@ -287,6 +287,13 @@ function toggleBoot() {
    big switch card, the Connection row, and the module description
    written back into module.prop, so nothing can show a mismatched state. */
 function statusLine() {
+  if (toggling) return { text: (latest && latest.BackendState === 'Running') ? 'Stopping…' : 'Starting…', hint: '…' };
+  if (loginPending) return { text: 'Generating login URL…', hint: '' };
+  if (restartBusy) return { text: 'Restarting tailscaled…', hint: '' };
+  if (logoutBusy) return { text: 'Logging out…', hint: '' };
+  if (exitBusy) return { text: 'Setting exit node…', hint: '' };
+  if (prefBusy) return { text: 'Applying settings…', hint: '' };
+  if (bootBusy) return { text: 'Saving boot setting…', hint: '' };
   if (anyBusy()) return { text: 'Working…', hint: '' };
   if (!daemonUp) return { text: 'Service stopped — tap to start', hint: 'tailscaled is not running' };
   var backend = latest ? latest.BackendState : null;
@@ -310,8 +317,9 @@ function render() {
 
   setSwitch('main-switch', on);
 
-  /* In-flight action feedback: linear progress + disable competing
+  /* In-flight action feedback: spinner + linear progress + disable competing
      controls so double-taps can't stack root execs. */
+  setHidden('busy-spinner', !busy);
   setHidden('action-progress', !busy);
   $('status-box').classList.toggle('busy-press', busy);
   $('login-btn').disabled = busy;

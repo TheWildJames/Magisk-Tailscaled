@@ -406,6 +406,19 @@
         margin: 8px 0 0 0;
         --md-linear-progress-active-indicator-height: 3px;
     }
+    /* busy spinner — shown on top of the status card whenever any root
+       action is in flight (start, stop, restart, logout, settings, …) so
+       the UI never looks frozen */
+    .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid var(--md-sys-color-outline-variant);
+        border-top-color: var(--md-sys-color-primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 10px auto 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .status-hint {
         margin: 2px 0 0 0;
