@@ -401,6 +401,11 @@
         width: 100%;
         --md-linear-progress-active-indicator-height: 4px;
     }
+    #login-progress {
+        width: 100%;
+        margin: 8px 0 0 0;
+        --md-linear-progress-active-indicator-height: 3px;
+    }
 
     .status-hint {
         margin: 2px 0 0 0;

@@ -443,24 +443,34 @@ function startLogin() {
   if (loginPending) return;
   if (latest && latest.AuthURL) {
     loginUrl = String(latest.AuthURL);
-    render();
-    showPrompt('Login URL ready');
+    showLoginUrlReady();
     return;
   }
   loginPending = true;
-  showPrompt('Generating login URL…', true, 20000);
+  /* show progress + "Generating…" text right away so the UI never looks frozen */
+  $('login-progress').removeAttribute('hidden');
+  $('login-url-row').removeAttribute('hidden');
+  setText('login-url', 'Generating login URL…');
+  render();
   exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
     .then(function (r) {
       loginPending = false;
+      $('login-progress').setAttribute('hidden', '');
       loginUrl = r.stdout.trim();
       if (loginUrl) {
-        urlHtml = '';
-        render();
-        showPrompt('Login URL ready');
+        showLoginUrlReady();
       } else {
-        showPrompt('Could not get a login URL — try: su -c tailscale login', false, 4000);
+        setText('login-url', 'Could not get a login URL');
+        showPrompt('Could not get a login URL — try: su -c tailscale login', false, 5000);
       }
     });
+}
+function showLoginUrlReady() {
+  $('login-url-row').removeAttribute('hidden');
+  setText('login-url', loginUrl);
+  urlHtml = '';
+  render();
+  showPrompt('Login URL ready — tap Open in browser');
 }
 function openLoginUrl() {
   if (!loginUrl) return;
