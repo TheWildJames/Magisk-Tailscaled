@@ -313,13 +313,14 @@ function render() {
 
   setSwitch('main-switch', on);
 
-  /* In-flight action feedback: spinner + linear progress + disable competing
-     controls so double-taps can't stack root execs. */
-  setHidden('busy-spinner', !busy);
-  setHidden('action-progress', !busy);
-  setHidden('busy-overlay', !busy);
-  setText('busy-text', statusLine().text);
-  $('status-box').classList.toggle('busy-press', busy);
+  /* In-flight action feedback: inline spinner next to the switch + disable
+     competing controls so double-taps can't stack root execs. */
+  setHidden('switch-busy', !busy);
+  setHidden('inline-busy', !busy);
+  setText('inline-busy-text', statusLine().text);
+  $('main-switch').classList.toggle('busy', busy);
+  $('switch-label').textContent = (on ? 'Tailscale' : 'Tailscale');
+  $('switch-sub').textContent = busy ? statusLine().text : (on ? 'Connected — tap to disconnect' : 'Stopped — tap to connect');
   $('login-btn').disabled = busy;
   $('open-url-btn').disabled = busy || !loginUrl;
   $('copy-url-btn').disabled = busy || !loginUrl;

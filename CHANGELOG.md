@@ -1,3 +1,10 @@
+## v2.6.5.0
+
+- **Redesigned main UI around the switch** — the main toggle is now the primary action on the home page, not a big tap button. The switch sits prominently at the top of the status card with the status text below it.
+- **No full-screen loading circle** — removed the busy overlay entirely. Loading state shows only inline: a small spinner next to the switch + the action text ("Starting…", "Stopping…", etc.) right under it.
+- **Switch shows busy state** — when any root action is in flight, the switch gets a `busy` class (dimmed, pointer-events disabled) and the inline spinner spins next to it. The UI never looks frozen because `setTimeout(..., 0)` yields to the browser before `ksu.exec` runs.
+- **Clean status card** — rounded surface container, larger "Tailscale" title, subtitle that shows connected/stopped state, inline busy row below.
+
 ## v2.6.4.0
 
 - **No more frozen UI on start/stop** — the root cause was `ksu.exec(cmd)` being SYNCHRONOUS per the KernelSU-Next API docs: it blocks the WebView UI thread until the command finishes, so the busy overlay never had a chance to paint. Fixed two ways:

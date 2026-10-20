@@ -39,17 +39,25 @@
         <!-- ============ HOME PAGE ============ -->
         <div class="page-view" data-active="true" id="page-home">
             <div class="body-content constant-height">
-                <!-- Status box (tap = toggle VPN) -->
-                <div class="box" id="status-box">
+                <!-- Status box (switch = toggle VPN) -->
+                <div class="box status-card" id="status-box">
                     <md-ripple></md-ripple>
-                    <div class="status-main">
+                    <div class="switch-row">
                         <md-switch id="main-switch" icons></md-switch>
-                        <h2 id="status-header">Tailscale</h2>
-                        <p id="status-text">Initializing…</p>
-                        <div class="spinner" id="busy-spinner" hidden></div>
-                        <p id="status-hint" class="status-hint"></p>
+                        <div class="switch-label-wrap">
+                            <div class="switch-label" id="switch-label">Tailscale</div>
+                            <div class="switch-sub" id="switch-sub">Tap to connect</div>
+                        </div>
+                        <div class="switch-busy" id="switch-busy" hidden>
+                            <div class="spinner-sm"></div>
+                        </div>
                     </div>
-                    <md-linear-progress id="action-progress" indeterminate hidden></md-linear-progress>
+                    <p id="status-text">Initializing…</p>
+                    <div class="inline-busy" id="inline-busy" hidden>
+                        <div class="spinner-sm"></div>
+                        <span id="inline-busy-text">Working…</span>
+                    </div>
+                    <p id="status-hint" class="status-hint"></p>
                 </div>
 
                 <!-- Health warnings (from status --json) -->
@@ -271,12 +279,6 @@
                 <md-text-button id="exitnode-close">Close</md-text-button>
             </div>
         </md-dialog>
-    </div>
-    <!-- Busy overlay: dims the screen + shows a large spinner whenever any
-       root action is in flight, so the UI never looks frozen. -->
-    <div id="busy-overlay" hidden>
-        <div class="busy-spinner-big"></div>
-        <p id="busy-text">Working…</p>
     </div>
 
 </body>
