@@ -272,5 +272,12 @@
             </div>
         </md-dialog>
     </div>
+    <!-- Busy overlay: dims the screen + shows a large spinner whenever any
+       root action is in flight, so the UI never looks frozen. -->
+    <div id="busy-overlay" hidden>
+        <div class="busy-spinner-big"></div>
+        <p id="busy-text">Working…</p>
+    </div>
+
 </body>
 </html>

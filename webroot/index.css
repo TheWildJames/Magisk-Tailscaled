@@ -92,8 +92,8 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: calc(var(--top-inset) + 64px);
-        font-size: 1.4em;
+        height: calc(var(--top-inset) + 56px);
+        font-size: 1em;
         align-items: center;
         padding: 0 16px;
         padding-top: var(--top-inset);
@@ -101,18 +101,25 @@
         user-select: none;
         z-index: var(--z-index-header);
         background-color: var(--md-sys-color-surface);
+        border-bottom: 1px solid var(--md-sys-color-outline-variant);
     }
 
     .title-container {
         flex-grow: 1;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 8px;
+    }
+
+    #title {
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        color: var(--md-sys-color-on-surface);
     }
 
     #version-text {
-        font-size: 0.7em;
-        line-height: 1.6;
+        font-size: 0.75em;
+        line-height: 1.4;
         color: var(--md-sys-color-outline);
     }
 
@@ -419,6 +426,35 @@
         margin: 10px auto 0 auto;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== full-screen busy overlay (unmistakable "working" state) ===== */
+    #busy-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: var(--z-index-dialog);
+        background: rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+    #busy-overlay.hidden, #busy-overlay[hidden] { display: none; }
+    .busy-spinner-big {
+        width: 56px;
+        height: 56px;
+        border: 5px solid var(--md-sys-color-outline-variant);
+        border-top-color: var(--md-sys-color-primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    #busy-text {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--md-sys-color-on-surface);
+        margin: 0;
+    }
 
     .status-hint {
         margin: 2px 0 0 0;

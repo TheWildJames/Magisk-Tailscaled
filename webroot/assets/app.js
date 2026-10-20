@@ -321,6 +321,8 @@ function render() {
      controls so double-taps can't stack root execs. */
   setHidden('busy-spinner', !busy);
   setHidden('action-progress', !busy);
+  setHidden('busy-overlay', !busy);
+  setText('busy-text', statusLine().text);
   $('status-box').classList.toggle('busy-press', busy);
   $('login-btn').disabled = busy;
   $('open-url-btn').disabled = busy || !loginUrl;
@@ -652,6 +654,7 @@ function wireEvents() {
   });
 
   $('status-box').addEventListener('click', toggleVPN);
+  $('main-switch').addEventListener('click', function (e) { e.stopPropagation(); toggleVPN(); });
   $('login-btn').addEventListener('click', startLogin);
   $('open-url-btn').addEventListener('click', openLoginUrl);
   $('copy-url-btn').addEventListener('click', copyLoginUrl);

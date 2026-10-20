@@ -1,3 +1,9 @@
+## v2.6.3.0
+
+- **Start button actually works** — the `main-switch` toggle (Material switch in shadow DOM) never bubbled its click to `status-box`, so tapping the top toggle looked like it did nothing. It now has its own click handler wired to start/stop, so tapping the switch actually toggles the VPN.
+- **No more "frozen" feel** — a full-screen dimming overlay with a large spinning circle + exact action text ("Starting…", "Stopping…", "Logging out…", "Applying settings…") covers the screen the instant you tap any action, before the root command runs. The old subtle linear progress bar alone was too easy to miss.
+- **Header cleaned up** — smaller top bar, proper title weight, bottom divider, cleaner version text.
+
 ## v2.6.1.0
 
 - **Login no longer looks frozen** — `startLogin()` shows the progress bar + "Generating login URL…" text immediately on tap, instead of a 20s snackbar that could expire before `tailscale login` finished. The menu stays responsive (buttons disabled with clear "working" feedback) until the auth URL is ready.
