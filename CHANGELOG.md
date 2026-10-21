@@ -1,3 +1,7 @@
+## v2.7.5.0
+
+- **Settings switches fixed** — `--advertise-exit-node` flag now uses proper `=true`/`=false` format (was missing the value). `setPref` now calls `poll()` after completing so the UI refreshes, and shows the RC code in error messages for debugging.
+
 ## v2.7.4.0
 
 - **Faster update check** — shell fallback now tries curl/wget once each with a 4s timeout instead of 8 commands × 15s. The "Checking…" state resolves in seconds, not minutes, then shows the browser "Open" button if the WebView can't reach the network.

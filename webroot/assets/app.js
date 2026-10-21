@@ -684,14 +684,16 @@ function setPref(flag, on) {
   if (prefBusy) return;
   prefBusy = true; render();
   var val = (flag === '--advertise-exit-node')
-    ? (on ? '--advertise-exit-node' : '--advertise-exit-node=false')
+    ? (on ? '--advertise-exit-node=true' : '--advertise-exit-node=false')
     : (flag + '=' + (on ? 'true' : 'false'));
   /* yield to the browser so the busy overlay paints before ksu.exec blocks */
   setTimeout(function () {
     exec(ENV + 'tailscale set ' + val + ' 2>&1; echo RC=$?', 20000).then(function (r) {
     prefBusy = false;
-    if (!/RC=0/.test(r.stdout)) showPrompt('Setting failed — check logs', false);
+    var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
+    if (!/RC=0/.test(r.stdout)) showPrompt('Setting failed (RC=' + rc + ') — check logs', false);
     else showPrompt(on ? 'Setting on' : 'Setting off');
+    poll();
     });
   }, 0);
 }
