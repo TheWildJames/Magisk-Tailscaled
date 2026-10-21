@@ -124,7 +124,8 @@ function setHidden(id, hide) {
 }
 function setSwitch(id, on) {
   var el = $(id); if (!el) return;
-  if (!!el.selected !== !!on) el.selected = !!on;
+  if (on) el.setAttribute('selected', '');
+  else el.removeAttribute('selected');
 }
 
 /* ===== state ===== */
@@ -279,6 +280,24 @@ function toggleBoot() {
     showPrompt(bootOn ? 'tailscaled will start on boot' : 'tailscaled won\u2019t start on boot');
     });
   }, 0);
+}
+
+/* ===== hostname ===== */
+/* Set the Tailscale hostname to the Android device model name
+   instead of "localhost", so it shows up properly in your tailnet. */
+var hostnameSet = false;
+function setHostname() {
+  if (hostnameSet) return;
+  exec(ENV + 'getprop ro.product.model 2>/dev/null', 8000).then(function (r) {
+    var model = String(r.stdout).trim();
+    if (!model || model === 'localhost') return;
+    exec(ENV + 'tailscale set --hostname=' + model + ' 2>&1; echo RC=$?', 15000).then(function (r) {
+      if (/RC=0/.test(r.stdout)) {
+        hostnameSet = true;
+        showPrompt('Hostname set to ' + model);
+      }
+    });
+  });
 }
 
 
@@ -501,12 +520,20 @@ function render() {
   setText('kv-self-os', (s && s.OS) || '—');
   renderPeers(st, on);
 
+  /* Set hostname to Android device model when connected */
+  if (on && !hostnameSet) setHostname();
+
   /* settings */
   var canSet = daemonUp && (backend === 'Running' || backend === 'Starting');
-  setSwitch('sw-accept-dns', prefs ? !!prefs.CorpDNS : false);
-  setSwitch('sw-accept-routes', prefs ? !!prefs.RouteAll : false);
-  setSwitch('sw-adv-exit', prefs ? (String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) : false);
-  setSwitch('sw-lan-access', prefs ? !!prefs.ExitNodeAllowLANAccess : false);
+  /* Only update switch state from prefs when not in the middle of a setPref
+     exec, otherwise render() overrides the md-switch's native toggle with
+     stale prefs while the command is still in flight. */
+  if (!prefBusy) {
+    setSwitch('sw-accept-dns', prefs ? !!prefs.CorpDNS : false);
+    setSwitch('sw-accept-routes', prefs ? !!prefs.RouteAll : false);
+    setSwitch('sw-adv-exit', prefs ? (String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) : false);
+    setSwitch('sw-lan-access', prefs ? !!prefs.ExitNodeAllowLANAccess : false);
+  }
   var exName = 'None';
   if (prefs && (prefs.ExitNodeIP || prefs.ExitNodeID)) {
     exName = prefs.ExitNodeIP || prefs.ExitNodeID || 'in use';

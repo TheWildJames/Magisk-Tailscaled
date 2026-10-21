@@ -1,3 +1,8 @@
+## v2.7.3.0
+
+- **Settings switches fixed** — switches now use `setAttribute`/`removeAttribute` instead of the `selected` property, and `render()` skips switch updates while a `setPref` exec is in flight, so the md-switch's native toggle isn't overridden by stale prefs. Taps register correctly.
+- **Hostname set to Android device name** — on connect, reads `ro.product.model` and runs `tailscale set --hostname=<name>` so your device shows up as (e.g.) "Pixel 8" instead of "localhost" in your tailnet.
+
 ## v2.7.2.0
 
 - **User-friendly network errors** — instead of raw "fetch error: TypeError: Failed to fetch", the WebUI now says "WebUI can't reach the network — open GitHub releases in your browser?" with an "Open" button.
