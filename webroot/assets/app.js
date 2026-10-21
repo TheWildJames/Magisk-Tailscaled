@@ -334,30 +334,47 @@ function loadLogs() {
   exec(ENV + 'tail -n 200 ' + LOGFILE + " 2>/dev/null || echo '(no daemon log)'", 12000)
     .then(function (r) { setText('log-content', r.stdout.trim() || '(empty)'); });
 }
+function copyLogs() {
+  var text = $('log-content').textContent || '';
+  try { navigator.clipboard.writeText(text).then(function () { snack('Logs copied'); }); }
+  catch (e) { exec(ENV + "echo '" + text.replace(/'/g, "'\\''") + "' | toybox tr -d '\n' | wl clipboard 2>/dev/null || echo '" + text.slice(0, 200) + "'"); snack('Copy — check snackbar'); }
+}
+function shareLogs() {
+  var text = $('log-content').textContent || '';
+  /* Write to temp file and share via Android intent */
+  exec(ENV + "cat > /data/local/tmp/ts-logs.txt << 'LOGEOF'\n" + text + "\nLOGEOF\n" +
+       'am start -a android.intent.action.SEND -t text/plain --eu android.intent.extra.TEXT "$(cat /data/local/tmp/ts-logs.txt)" 2>/dev/null || ' +
+       'am start -a android.intent.action.VIEW -d "file:///data/local/tmp/ts-logs.txt" -t text/plain 2>/dev/null; echo SHARED', 15000)
+    .then(function () { snack('Sharing logs…'); });
+}
 
 /* ===== update check ===== */
 var currentVersionCode = '';
 function checkUpdate() {
   setText('update-current', 'Checking…');
-  fetch(UPDATE_JSON)
+  fetch(UPDATE_JSON, { cache: 'no-cache' })
     .then(function (r) { return r.text(); })
     .then(function (text) {
+      setText('update-current', '');
       try {
         var info = JSON.parse(text);
-        var remote = parseInt(info.versionCode, 10);
+        var remote = parseInt(info.versionCode, 10) || 0;
         var local = parseInt(currentVersionCode, 10) || 0;
         if (remote > local) {
-          snack('Update available: ' + info.version);
-          setTimeout(function () { exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1'); }, 500);
+          setText('update-current', 'v' + (info.version || '?') + ' available');
+          snack('Update available: ' + info.version + ' — opening releases');
+          setTimeout(function () { exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1'); }, 1000);
         } else {
+          setText('update-current', 'Up to date (v' + (info.version || '?') + ')');
           snack('You are on the latest version');
         }
-      } catch (e) { snack('Failed to parse update info'); }
-      setText('update-current', '');
+      } catch (e) {
+        snack('Failed to parse update info');
+      }
     })
     .catch(function () {
       setText('update-current', '');
-      snack("Can't reach GitHub — opening releases");
+      snack("Can't reach GitHub — opening releases in browser");
       exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1');
     });
 }
@@ -410,6 +427,8 @@ function wire() {
 
   $('row-logs').addEventListener('click', openLogs);
   $('log-close-btn').addEventListener('click', closeLogs);
+  $('log-copy-btn').addEventListener('click', copyLogs);
+  $('log-share-btn').addEventListener('click', shareLogs);
   $('row-update').addEventListener('click', checkUpdate);
   $('row-github').addEventListener('click', function () {
     exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + ' >/dev/null 2>&1');
@@ -433,6 +452,7 @@ function boot() {
   });
   exec(ENV + 'grep "^versionCode=" ' + MODPROP + ' 2>/dev/null | head -1 | cut -d= -f2', 8000).then(function (r) {
     currentVersionCode = r.stdout.trim();
+    if (currentVersionCode) setText('update-current', 'Current: v' + currentVersionCode.replace(/^0+/, ''));
   });
   schedulePoll(0);
 }

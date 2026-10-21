@@ -108,7 +108,7 @@
                 <span class="chevron">›</span>
             </div>
             <div class="setting-row tap" id="row-github">
-                <div class="setting-info"><div>GitHub</div><small>TheWildJames/Magisk-Tailscaled</small></div>
+                <div class="setting-info"><div>GitHub repository</div><small>Source code & releases</small></div>
                 <span class="chevron">›</span>
             </div>
         </div>
@@ -130,7 +130,11 @@
 <div class="overlay" id="log-overlay" hidden>
     <div class="overlay-header">
         <span>Daemon Log</span>
-        <button class="overlay-close" id="log-close-btn">×</button>
+        <div class="overlay-actions">
+            <button class="overlay-btn" id="log-copy-btn">Copy</button>
+            <button class="overlay-btn" id="log-share-btn">Share</button>
+            <button class="overlay-close" id="log-close-btn">×</button>
+        </div>
     </div>
     <pre class="overlay-body mono" id="log-content">Loading…</pre>
 </div>

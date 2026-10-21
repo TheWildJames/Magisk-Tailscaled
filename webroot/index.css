@@ -249,6 +249,20 @@ body {
     border-radius: 16px 16px 0 0;
     font-weight: 600;
 }
+.overlay-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.overlay-btn {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
 .overlay-close {
     border: none;
     background: none;
@@ -313,6 +327,15 @@ body {
     font-size: 13px;
     z-index: 50;
     text-align: center;
+}
+
+/* Settings switch sizing */
+.setting-row md-switch {
+    --md-switch-track-width: 44px;
+    --md-switch-track-height: 26px;
+    --md-switch-handle-width: 18px;
+    --md-switch-handle-height: 18px;
+    flex-shrink: 0;
 }
 
 /* Kill double-tap-zoom delay on tappables */

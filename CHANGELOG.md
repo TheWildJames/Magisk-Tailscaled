@@ -1,3 +1,11 @@
+## v2.8.1.0
+
+- **Module renamed to "Tailscale"** — display name no longer says "Magisk Tailscaled"; tagline removed. Description: "Full Tailscale VPN client for rooted Android."
+- **Log viewer: Copy & Share buttons** — copy daemon logs to clipboard or share via Android share intent.
+- **Update check fixed** — shows current version, compares against latest release, only opens browser when a newer version exists or when the network fetch fails.
+- **Settings switch sizing** — md-switch components given explicit track/handle dimensions for consistent appearance.
+- **No "Magisk" text in the UI** — only filesystem paths (`/data/adb/magisk`) and the GitHub repo URL retain it, which are backend-only.
+
 ## v2.8.0.0 — Clean rebuild
 
 - **Complete WebUI rewrite** — rebuilt from scratch modeled on the official Tailscale Android app. Two pages (Home / Settings), single state object, no more monolithic 941-line JS with 25 globals.
