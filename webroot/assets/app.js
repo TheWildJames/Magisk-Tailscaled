@@ -286,27 +286,42 @@ function toggleBoot() {
 /* ===== manual update check & download ===== */
 /* Fetch update.json via the browser's native fetch() (WebView has network
    access without needing curl/wget installed), falling back to shell
-   curl/wget if fetch is blocked. Same pattern bindhosts uses. */
+   curl/wget if fetch is blocked. Same pattern bindhosts uses. Adds -k /
+   --no-check-certificate shell fallbacks for devices whose CA store
+   doesn't trust GitHub's TLS cert (common on rooted/custom Android). */
 function fetchUrl(url, timeoutMs) {
   return new Promise(function (resolve) {
     var settled = false;
     var timer = setTimeout(function () {
-      if (!settled) { settled = true; resolve({ errno: -1, stdout: '', stderr: 'fetch timeout' }); }
+      if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'fetch timeout' }); }
     }, timeoutMs || 15000);
+    var fetchErr = null;
     fetch(url)
       .then(function (resp) { return resp.text(); })
       .then(function (text) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: 0, stdout: text, stderr: '' }); } })
       .catch(function (err) {
+        fetchErr = String(err).slice(0, 120);
         /* fetch blocked by WebView — fall back to shell curl/wget */
         var cmds = [
+          'curl -sSL -k ' + url,
           'curl -sSL ' + url,
+          'wget -qO- --no-check-certificate ' + url,
           'wget -qO- ' + url,
+          'busybox wget -qO- --no-check-certificate ' + url,
           'busybox wget -qO- ' + url,
+          'toybox wget -qO- --no-check-certificate ' + url,
           'toybox wget -qO- ' + url
         ];
         var i = 0;
         function tryNext() {
-          if (i >= cmds.length) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'no fetch tool found' }); } return; }
+          if (i >= cmds.length) {
+            if (!settled) {
+              settled = true; clearTimeout(timer);
+              var msg = fetchErr ? ('fetch error: ' + fetchErr) : 'no fetch tool found';
+              resolve({ errno: -1, stdout: '', stderr: msg });
+            }
+            return;
+          }
           var cmd = ENV + cmds[i] + ' 2>&1; echo RC=$?';
           i++;
           exec(cmd, timeoutMs || 15000).then(function (r) {
@@ -331,7 +346,7 @@ function checkForUpdates() {
       $('update-check-btn').disabled = false;
       var out = String(r.stdout).trim();
       if (!out) {
-        showPrompt('No network fetch available — open releases in browser?', false, 0, 'Open', function () {
+        showPrompt(r.stderr || 'No network fetch available — open releases in browser?', false, 0, 'Open', function () {
           exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1; echo OPEN');
           showPrompt('Opening GitHub releases…');
         });
@@ -366,9 +381,9 @@ function downloadUpdate() {
   setHidden('update-dismiss-btn', true);
   setHidden('update-progress', false);
   var dest = '/sdcard/Download/Magisk-Tailscaled-' + updateInfo.version + '.zip';
-  /* try curl first, fall back to wget */
-  var fetchCmd = 'curl -sSL -o ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
-  var fetchFallback = 'wget -q -O ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
+  /* try curl with -k first, fall back to plain curl, then wget variants */
+  var fetchCmd = 'curl -sSL -k -o ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
+  var fetchFallback = 'wget -q -O --no-check-certificate ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
   setTimeout(function () {
     exec(ENV + fetchCmd, 120000).then(function (r) {
       var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
@@ -384,7 +399,7 @@ function downloadUpdate() {
             showPrompt('Downloaded to ' + dest, true);
             setHidden('update-panel', true);
           } else {
-            showPrompt('Download failed — curl and wget both unavailable', false);
+            showPrompt('Download failed — TLS/cert or no fetch tool available', false);
             setHidden('update-download-btn', false);
             setHidden('update-dismiss-btn', false);
           }

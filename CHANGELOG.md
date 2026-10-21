@@ -1,3 +1,9 @@
+## v2.7.1.0
+
+- **TLS certificate error handling** — if `fetch()` or shell curl/wget fails with a TLS/cert error ("tlsnscert"), the prompt now shows the actual error instead of a generic message.
+- **`-k` / `--no-check-certificate` shell fallbacks** — curl and wget try with certificate verification disabled first, which works on devices whose CA store doesn't trust GitHub's TLS cert (common on rooted/custom Android).
+- **Surfaces the actual fetch error** — instead of "no fetch tool found", shows the real error (e.g., TLS handshake failure, DNS, timeout).
+
 ## v2.7.0.0
 
 - **Update check uses the WebView's built-in `fetch()`** — same pattern bindhosts uses. No longer needs curl/wget installed on the device to check for updates.
