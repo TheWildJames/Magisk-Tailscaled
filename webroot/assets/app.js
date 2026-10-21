@@ -1,18 +1,12 @@
-/* Tailscaled WebUI app logic.
-   Layout patterns after bindhosts (WTFPL) — github.com/bindhosts/bindhosts.
-   Performance rules (fix for "slow / doesn't react to touch"):
-   - ONE shell exec per poll (all queries combined, @@M markers)
-   - DOM touched only when a value actually changed
-   - peers list rebuilt only when the peer signature changes
-   - events delegated on stable parents — rows never hold listeners,
-     so re-renders can't kill a tap in flight */
+/* Tailscaled WebUI v3.0 — clean rebuild.
+   One exec per poll, single state object, event delegation. */
 
 'use strict';
 
 /* ===== helpers ===== */
-function $(id) { return document.getElementById(id); }
-function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
-function ip4(p) { return (p && p.TailscaleIPs && p.TailscaleIPs[0]) || ''; }
+var $ = function (id) { return document.getElementById(id); };
+var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
+var ip4 = function (p) { return (p && p.TailscaleIPs && p.TailscaleIPs[0]) || ''; };
 
 /* ===== environment ===== */
 var ENV = 'export PATH=/data/adb/tailscale/bin:/data/adb/tailscale/scripts:/data/adb/magisk:/data/adb/ksu/bin:/system/bin:$PATH; export HOME=/data/adb/tailscale; ';
@@ -22,919 +16,425 @@ var LOGFILE = '/data/adb/tailscale/run/tailscaled.log';
 var GITHUB = 'https://github.com/TheWildJames/Magisk-Tailscaled';
 var UPDATE_JSON = GITHUB + '/raw/main/update.json';
 
-/* ===== mock bridge (?mock=1 / ?mock=login) ===== */
+/* ===== mock bridge (?mock=1) ===== */
 var isMock = location.search.indexOf('mock') !== -1;
 if (isMock) {
-  var MOCK_STATUS = {
-    BackendState: 'Running',
-    Health: [],
-    ExitNodeStatus: { TailscaleIPs: ['100.64.0.3'] },
-    AuthURL: '',
-    Self: { HostName: 'pixel8', OS: 'android', UserID: 12345, TailscaleIPs: ['100.64.0.1', 'fd7a:115c:a1e0::1'], Online: true },
+  var MOCK = {
+    BackendState: 'Running', Health: [],
+    Self: { HostName: 'pixel8', OS: 'android', TailscaleIPs: ['100.64.0.1', 'fd7a:115c:a1e0::1'] },
     Peer: {
-      k1: { HostName: 'desktop', TailscaleIPs: ['100.64.0.2'], Online: true, ExitNodeOption: true },
-      k2: { HostName: 'vps-exit', TailscaleIPs: ['100.64.0.3'], Online: true, ExitNodeOption: true, ExitNode: true },
-      k3: { HostName: 'laptop', TailscaleIPs: ['100.64.0.4'], Online: false, LastSeen: '2026-10-18T09:12:00Z' }
+      a: { HostName: 'desktop', TailscaleIPs: ['100.64.0.2'], Online: true },
+      b: { HostName: 'vps-exit', TailscaleIPs: ['100.64.0.3'], Online: true, ExitNode: true }
     }
   };
-  var MOCK_PREFS = { CorpDNS: true, RouteAll: false, ExitNodeIP: '100.64.0.3', ExitNodeAllowLANAccess: true, AdvertiseRoutes: [] };
-  if (location.search.indexOf('login') !== -1) {
-    MOCK_STATUS = {
-      BackendState: 'NeedsLogin',
-      AuthURL: 'https://login.tailscale.com/a/13faf79d01c0b4',
-      Health: ['You are logged out. The last login error was: register request: http 410: auth path not found'],
-      Self: { HostName: 'pixel8', OS: 'android' }
-    };
-  }
-  var MOCK_DOWN = location.search.indexOf('down') !== -1;
+  var MOCK_PREFS = { CorpDNS: true, RouteAll: false, AdvertiseRoutes: [], ExitNodeAllowLANAccess: false };
   window.ksu = {
     exec: function (cmd, opts, cb) {
       var out = '';
-      if (cmd.indexOf('@@M2') !== -1) {
-        out = MOCK_DOWN
-          ? '@@M2\n1.104.1\n@@M3\n\n@@M4\n\n@@M5'
-          : '@@M2\n1.104.1\n@@M3\n' + JSON.stringify(MOCK_STATUS) + '\n@@M4\n' +
-            (MOCK_STATUS.BackendState === 'Running' ? JSON.stringify(MOCK_PREFS) : '') + '\n@@M5';
-      } else if (/grep .version=/.test(cmd)) { out = 'version=9.9.9-mock\n'; }
-      else if (/tailscale login/.test(cmd)) { out = 'To authenticate, visit:\n\n\thttps://login.tailscale.com/a/1234567890abcdef\n'; }
-      else if (/tailscale ping/.test(cmd)) { out = 'pong from desktop (100.64.0.2) via DERP(home) in 23ms\n'; }
-      else if (/tail /.test(cmd)) { out = 'mock daemon log line 1\nmock daemon log line 2\n'; }
-      else { out = 'RC=0\n'; }
-      setTimeout(function () { window[cb](0, out, ''); }, 100);
+      if (cmd.indexOf('@@M2') !== -1) out = '@@M2\n1.104.2\n@@M3\n' + JSON.stringify(MOCK) + '\n@@M4\n' + JSON.stringify(MOCK_PREFS) + '\n@@M5\nOK';
+      else if (/version=.*module.prop/.test(cmd)) out = 'version=v9.9.9\n';
+      else if (/versionCode=.*module.prop/.test(cmd)) out = '99900\n';
+      else if (/NOBOOT/.test(cmd)) out = 'OK\n';
+      else if (/tailscale login/.test(cmd)) out = 'https://login.tailscale.com/a/mock123\n';
+      else if (/tail /.test(cmd)) out = 'mock log line 1\nmock log line 2\n';
+      else out = 'RC=0\n';
+      setTimeout(function () { window[cb](0, out, ''); }, 50);
     },
     toast: function () {}
   };
 }
 
-/* ===== exec wrapper (kernelsu-alt contract: ksu.exec(cmd, optsJson, cbName)) ===== */
-var cbCounter = 0, bridgeOK = isMock;
+/* ===== exec wrapper ===== */
+var cbN = 0;
 function exec(cmd, timeoutMs) {
   timeoutMs = timeoutMs || 20000;
   return new Promise(function (resolve) {
-    if (typeof ksu === 'undefined' || !ksu.exec) {
-      resolve({ errno: -1, stdout: '', stderr: 'no ksu bridge' });
-      return;
-    }
-    var settled = false, timer = null;
+    if (typeof ksu === 'undefined' || !ksu.exec) { resolve({ errno: -1, stdout: '', stderr: 'no bridge' }); return; }
+    var settled = false, timer = null, name = '__cb' + (++cbN);
     function done(r) { if (settled) return; settled = true; if (timer) clearTimeout(timer); resolve(r); }
-    var cbName = '__tscb_' + (++cbCounter);
-    window[cbName] = function (errno, stdout, stderr) {
-      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-      if (!bridgeOK) { bridgeOK = true; updateBanner(); }
+    window[name] = function (errno, stdout, stderr) {
+      try { delete window[name]; } catch (e) { window[name] = undefined; }
       done({ errno: errno || 0, stdout: stdout || '', stderr: stderr || '' });
     };
-    timer = setTimeout(function () {
-      try { delete window[cbName]; } catch (e) {}
-      done({ errno: -1, stdout: '', stderr: 'exec timeout' });
-    }, timeoutMs);
-    try {
-      ksu.exec(cmd, '{}', cbName);
-    } catch (e) {
-      try { delete window[cbName]; } catch (e2) {}
-      done({ errno: -1, stdout: '', stderr: String(e) });
-    }
+    timer = setTimeout(function () { try { delete window[name]; } catch (e) {} done({ errno: -1, stdout: '', stderr: 'timeout' }); }, timeoutMs);
+    try { ksu.exec(cmd, '{}', name); }
+    catch (e) { try { delete window[name]; } catch (e2) {} done({ errno: -1, stdout: '', stderr: String(e) }); }
   });
 }
 
-/* ===== prompt / snackbar (bindhosts showPrompt, 1:1) ===== */
-var promptTimeout = null;
-function showPrompt(message, isSuccess, duration, callbackName, callback) {
-  var prompt = $('prompt');
-  var promptBtn = prompt.querySelector('.prompt-btn');
-  prompt.querySelector('.prompt-text').textContent = String(message || '').trim();
-  prompt.classList.toggle('error', isSuccess === false);
-  var hasCb = typeof callback === 'function';
-  promptBtn.textContent = hasCb ? (callbackName || '') : '';
-  promptBtn.onclick = hasCb ? callback : null;
-  promptBtn.classList.toggle('show', hasCb);
-  if (promptTimeout) clearTimeout(promptTimeout);
-  promptTimeout = setTimeout(function () {
-    prompt.classList.add('show');
-    promptTimeout = setTimeout(function () { prompt.classList.remove('show'); }, duration || 2500);
-  }, 10);
+/* ===== snackbar ===== */
+var snackTimer = null;
+function snack(msg) {
+  $('snackbar-text').textContent = msg;
+  $('snackbar').hidden = false;
+  if (snackTimer) clearTimeout(snackTimer);
+  snackTimer = setTimeout(function () { $('snackbar').hidden = true; }, 3000);
 }
 
-/* ===== guarded DOM updates ===== */
-var txtCache = {};
-function setText(id, s) { s = String(s); if (txtCache[id] === s) return; txtCache[id] = s; var el = $(id); if (el) el.textContent = s; }
-function setHidden(id, hide) {
-  var el = $(id); if (!el) return;
-  var cur = el.hasAttribute('hidden');
-  if (cur !== !!hide) { if (hide) el.setAttribute('hidden', ''); else el.removeAttribute('hidden'); }
-}
-function setSwitch(id, on) {
-  var el = $(id); if (!el) return;
-  if (on) el.setAttribute('selected', '');
-  else el.removeAttribute('selected');
-}
-
-/* ===== state ===== */
-var latest = null, prefs = null, daemonUp = false, toggling = false;
-var loginUrl = '', loginPending = false, versionStr = '', lastBackend = null;
-var restartBusy = false, logoutBusy = false, exitBusy = false, prefBusy = false, bootBusy = false;
-var bootOn = true, healthSig = '\u0000', lastDescKey = null;
-var peersSig = '', urlHtml = '';
-var logsOpen = false, logsTimer = null;
-var dialogOpen = false;
-var updateInfo = null;
-var currentVersionCode = '';
-
-/* any in-flight root action → progress bar, block double-taps */
-function anyBusy() {
-  return toggling || loginPending || restartBusy || logoutBusy || exitBusy || prefBusy || bootBusy;
-}
-
-var STATE_LABEL = {
-  Running: 'Connected', Starting: 'Starting…', NeedsLogin: 'Login required',
-  NeedsMachineAuth: 'Machine auth', Stopped: 'Disconnected', NoState: 'No state'
+/* ===== single state object ===== */
+var S = {
+  status: null, prefs: null,
+  daemonUp: false, busy: false, busyMsg: '',
+  bootOn: true, loginUrl: '', hostnameSet: false
 };
+function isRunning() { return S.status && S.status.BackendState === 'Running'; }
+function needsLogin() { return S.daemonUp && S.status && (S.status.BackendState === 'NeedsLogin' || S.status.BackendState === 'NoState'); }
 
-/* ===== combined poll: one exec, @@M markers =====
-   Daemon liveness = `tailscale status --json` returning parseable JSON.
-   (pgrep is useless here: the service script's own cmdline contains
-   "tailscaled.service", so it matches when the daemon is DEAD — leaving
-   the UI in a "Not logged in / everything —" limbo exactly like a real
-   daemon crash showed.) */
-function parsePoll(out) {
-  var idx = {};
-  ['M2', 'M3', 'M4', 'M5'].forEach(function (m) { idx[m] = out.indexOf('@@' + m); });
-  function between(a, b) {
-    if (idx[a] < 0) return '';
-    var s = idx[a] + a.length + 3;   /* skip '@@M2\n' */
-    var e = idx[b] >= 0 ? idx[b] : out.length;
-    return out.slice(s, e).trim();
-  }
-  return { ver: between('M2', 'M3'), status: between('M3', 'M4'), prefs: between('M4', 'M5') };
-}
+/* ===== DOM helpers ===== */
+function setText(id, s) { var el = $(id); if (el && el.textContent !== s) el.textContent = s; }
+function setHidden(id, h) { var el = $(id); if (el && el.hidden !== !!h) el.hidden = !!h; }
+function setSwitch(id, on) { var el = $(id); if (!el) return; if (on) el.setAttribute('selected', ''); else el.removeAttribute('selected'); }
 
+/* ===== poll — one exec, @@M markers ===== */
 function poll() {
   var cmd = ENV +
     'echo @@M2; tailscale version 2>/dev/null | head -n 1; ' +
     'echo @@M3; tailscale status --json 2>/dev/null; ' +
     'echo @@M4; tailscale debug prefs --json 2>/dev/null; ' +
-    'echo @@M5';
+    'echo @@M5; [ -e /data/adb/tailscale/NOBOOT ] && echo NB || echo OK; ' +
+    'echo @@M6';
   return exec(cmd, 20000).then(function (r) {
-    var p = parsePoll(r.stdout);
-    try { latest = p.status ? JSON.parse(p.status) : null; } catch (e) { latest = null; }
-    daemonUp = !!latest;
-    if (p.ver && p.ver !== versionStr) { versionStr = p.ver; renderVersion(); }
-    try { prefs = (latest && p.prefs) ? JSON.parse(p.prefs) : null; } catch (e) { prefs = null; }
+    var out = String(r.stdout);
+    function between(a, b) {
+      var i = out.indexOf('@@' + a), j = out.indexOf('@@' + b);
+      if (i < 0) return '';
+      return (j >= 0 ? out.slice(i + a.length + 3, j) : out.slice(i + a.length + 3)).trim();
+    }
+    var ver = between('M2', 'M3');
+    var statusStr = between('M3', 'M4');
+    var prefsStr = between('M4', 'M5');
+    var bootStr = between('M5', 'M6');
 
-    var backend = latest ? latest.BackendState : null;
-    if (anyBusy() || (backend && lastBackend && backend !== lastBackend)) {
-      /* action in flight or state transition — poll fast for a while */
-      lastActivity = Date.now();
-    }
-    if (daemonUp && backend === 'Running' && lastBackend && lastBackend !== 'Running') {
-      showPrompt('Logged in');
-    }
-    lastBackend = backend;
+    if (ver) setText('version-text', ver);
+    try { S.status = statusStr ? JSON.parse(statusStr) : null; } catch (e) { S.status = null; }
+    S.daemonUp = !!S.status;
+    try { S.prefs = prefsStr ? JSON.parse(prefsStr) : null; } catch (e) { S.prefs = null; }
+    S.bootOn = bootStr !== 'NB';
+
     render();
-    maybeUpdateDesc(backend);
   }).catch(function () { render(); });
 }
 
-/* ===== adaptive polling =====
-   Surveyed WebUIs (Tricky-Addon, zygisk-detach) don't poll at all — they
-   refresh on action. A VPN's state CAN change outside the UI (browser
-   login finishing, exit node coming online), so we poll, but adaptively:
-   4s while an action is in flight or within 30s of a state change,
-   15s when idle, never while hidden or a dialog is open. */
-var lastActivity = 0, pollTimer = null;
+/* ===== adaptive poll loop ===== */
+var lastAction = 0, pollTimer = null;
 function schedulePoll(delay) {
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = setTimeout(function () {
     pollTimer = null;
-    if (document.visibilityState === 'visible' && !dialogOpen) {
-      poll().then(function () {
-        var idleMs = Date.now() - lastActivity;
-        schedulePoll(idleMs < 30000 ? 4000 : 15000);
-      });
-    } else {
-      schedulePoll(2000);
-    }
+    if (document.visibilityState !== 'visible') { schedulePoll(2000); return; }
+    poll().then(function () {
+      schedulePoll(Date.now() - lastAction < 30000 ? 4000 : 15000);
+    });
   }, delay);
 }
+function bump() { lastAction = Date.now(); }
 
-/* ===== dialog-open lockout (Tricky-Addon pattern) =====
-   While a dialog is up, block stray touches/scroll behind it. */
-function setDialogOpen(v) {
-  dialogOpen = v;
-  document.body.classList.toggle('dlg', v);
+/* ===== render ===== */
+var peersSig = '';
+function render() {
+  var st = S.status, on = isRunning(), login = needsLogin();
+
+  /* status dot */
+  $('status-dot').className = 'status-dot ' + (S.busy ? 'wait' : on ? 'on' : 'off');
+
+  /* status text */
+  if (S.busy) { setText('status-state', S.busyMsg); setText('status-sub', ''); }
+  else if (!S.daemonUp) { setText('status-state', 'Stopped'); setText('status-sub', 'tailscaled is not running'); }
+  else if (on) { setText('status-state', 'Connected'); setText('status-sub', S.bootOn ? 'Auto-reconnects on boot' : ''); }
+  else if (login) { setText('status-state', 'Not logged in'); setText('status-sub', 'Tap Log in to authenticate'); }
+  else { setText('status-state', 'Not connected'); setText('status-sub', 'Tap Connect to join your tailnet'); }
+  setHidden('status-spinner', !S.busy);
+
+  /* action button */
+  var btn = $('action-btn');
+  if (S.busy) { btn.textContent = S.busyMsg || 'Working…'; btn.disabled = true; }
+  else if (login) { btn.textContent = 'Log in'; btn.disabled = false; }
+  else if (on) { btn.textContent = 'Disconnect'; btn.disabled = false; }
+  else { btn.textContent = 'Connect'; btn.disabled = false; }
+
+  /* login card */
+  if (login && st && st.AuthURL) S.loginUrl = String(st.AuthURL);
+  if (!login && !S.busy) S.loginUrl = '';
+  setHidden('login-card', !S.loginUrl);
+  if (S.loginUrl) setText('login-url', S.loginUrl);
+
+  /* health */
+  var health = st && st.Health && st.Health.length ? st.Health : null;
+  setHidden('health-card', !health);
+  if (health) $('health-list').innerHTML = health.map(function (h) { return '<div class="health-item">' + esc(h) + '</div>'; }).join('');
+
+  /* info card */
+  var s = st && st.Self;
+  setHidden('info-card', !(on && s));
+  if (on && s) {
+    setText('kv-ip4', (s.TailscaleIPs && s.TailscaleIPs[0]) || '—');
+    setText('kv-ip6', (s.TailscaleIPs && s.TailscaleIPs[1]) || '—');
+    setText('kv-exit', st.ExitNodeStatus ? ((st.ExitNodeStatus.TailscaleIPs && st.ExitNodeStatus.TailscaleIPs[0]) || 'in use') : 'none');
+    setText('kv-host', s.HostName || '—');
+  }
+
+  /* devices */
+  var showPeers = on && st && st.Peer && Object.keys(st.Peer).length > 0;
+  setHidden('devices-card', !showPeers);
+  if (showPeers) {
+    var peers = Object.keys(st.Peer).map(function (k) { return st.Peer[k]; });
+    peers.sort(function (a, b) { return (b.Online === true) - (a.Online === true) || String(a.HostName).localeCompare(String(b.HostName)); });
+    var sig = peers.map(function (p) { return [p.HostName || '', p.Online ? 1 : 0, ip4(p), p.ExitNode ? 1 : 0].join('|'); }).join(';');
+    if (sig !== peersSig) {
+      peersSig = sig;
+      $('peers-list').innerHTML = peers.map(function (p) {
+        return '<div class="peer-row">' +
+          '<div class="peer-dot' + (p.Online ? ' on' : '') + '"></div>' +
+          '<div class="peer-name">' + esc(p.HostName || '?') + (p.ExitNode ? ' <small>exit</small>' : '') + '</div>' +
+          '<span class="peer-ip">' + esc(ip4(p)) + '</span></div>';
+      }).join('');
+    }
+  } else { peersSig = ''; }
+
+  /* settings switches */
+  setSwitch('sw-boot', S.bootOn);
+  if (!S.busy) {
+    setSwitch('sw-dns', S.prefs ? !!S.prefs.CorpDNS : false);
+    setSwitch('sw-routes', S.prefs ? !!S.prefs.RouteAll : false);
+    setSwitch('sw-exit-adv', S.prefs ? (String(S.prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) : false);
+    setSwitch('sw-lan', S.prefs ? !!S.prefs.ExitNodeAllowLANAccess : false);
+  }
+
+  /* hostname */
+  if (on && !S.hostnameSet) setHostname();
 }
 
-/* ===== module.prop description writer =====
-   Mirrors the state the WebUI shows into the manager's module list
-   ("[ ⏲ HH:MM | ⚡ VPN connected ] <original description>"). Writes
-   only when the state actually changes — never on every poll. */
-var DESC_MSG = {
-  stopped: '⛔ tailscaled stopped ] ',
-  connected: '⚡ VPN connected ] ',
-  login: '⚠ login required ] ',
-  starting: '⏳ starting ] ',
-  disconnected: '⛔ VPN disconnected ] ',
-  machineauth: '⏳ machine auth ] '
-};
-function maybeUpdateDesc(backend) {
-  if (isMock) return;
-  var key;
-  if (!daemonUp) key = 'stopped';
-  else if (backend === 'Running') key = 'connected';
-  else if (backend === 'NeedsLogin' || backend === 'NoState') key = 'login';
-  else if (backend === 'Starting') key = 'starting';
-  else if (backend === 'Stopped') key = 'disconnected';
-  else if (backend === 'NeedsMachineAuth') key = 'machineauth';
-  else return;
-  if (key === lastDescKey) return;
-  lastDescKey = key;
-  var msg = DESC_MSG[key];
-  /* keep the same sed shape as the old v2 writer so both stay
-     compatible: replaces any leading "[ ... ]" prefix, keeps the
-     original description text after it */
-  exec(ENV + "T=$(date +%H:%M); sed -Ei \"s/^description=(\\[.*][[:space:]]*)?/description=[ ⏲ $T | " + msg + "/\" " + MODPROP + " 2>/dev/null; echo DESC_OK", 8000);
+/* ===== actions ===== */
+function setBusy(msg) { S.busy = true; S.busyMsg = msg; bump(); render(); }
+function clearBusy() { S.busy = false; S.busyMsg = ''; render(); }
+
+function doAction() {
+  if (S.busy) return;
+  if (needsLogin()) { doLogin(); return; }
+  if (isRunning()) { doDisconnect(); return; }
+  doConnect();
 }
 
-/* ===== boot autostart flag (NOBOOT marker file) ===== */
-function paintBoot() {
-  setSwitch('sw-boot', bootOn);
-  setText('boot-sub', bootOn ? 'Daemon auto-starts after reboot' : 'Disabled — daemon won\u2019t start at boot');
-}
-function readBootFlag() {
-  exec(ENV + '[ -e /data/adb/tailscale/NOBOOT ] && echo NB || echo OK', 8000).then(function (r) {
-    bootOn = String(r.stdout).trim() !== 'NB';
-    paintBoot();
-  });
-}
-function toggleBoot() {
-  if (bootBusy) return;
-  bootBusy = true; render();
-  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
+function doConnect() {
+  setBusy('Starting…');
   setTimeout(function () {
-    var cmd = bootOn
-      ? ENV + 'touch /data/adb/tailscale/NOBOOT; echo NBON'
-      : ENV + 'rm -f /data/adb/tailscale/NOBOOT; echo NBOFF';
-    exec(cmd, 8000).then(function (r) {
-    bootBusy = false;
-    bootOn = !bootOn;
-    paintBoot();
-    showPrompt(bootOn ? 'tailscaled will start on boot' : 'tailscaled won\u2019t start on boot');
+    exec(ENV + SERVICE + ' start >/dev/null 2>&1; R=$?; sleep 2; timeout 8 tailscale up >/dev/null 2>&1 || true; echo RC=$R', 45000)
+      .then(function (r) {
+        clearBusy();
+        snack(/RC=0/.test(r.stdout) ? 'Connected' : 'Start failed');
+        poll();
+      });
+  }, 0);
+}
+
+function doDisconnect() {
+  setBusy('Stopping…');
+  setTimeout(function () {
+    exec(ENV + 'tailscale down >/dev/null 2>&1; echo RC=$?', 30000)
+      .then(function (r) {
+        clearBusy();
+        snack(/RC=0/.test(r.stdout) ? 'Disconnected' : 'Stop failed');
+        poll();
+      });
+  }, 0);
+}
+
+function doLogin() {
+  if (S.status && S.status.AuthURL) { S.loginUrl = String(S.status.AuthURL); render(); return; }
+  setBusy('Generating URL…');
+  setHidden('login-card', false);
+  setText('login-url', 'Generating login URL…');
+  setTimeout(function () {
+    exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
+      .then(function (r) {
+        S.busy = false; S.busyMsg = '';
+        S.loginUrl = String(r.stdout).trim();
+        if (S.loginUrl) { render(); snack('Login URL ready'); }
+        else { setText('login-url', 'Could not get URL'); snack('Login failed'); }
+      });
+  }, 0);
+}
+
+function confirmLogout() {
+  setHidden('logout-overlay', true);
+  setBusy('Logging out…');
+  setTimeout(function () {
+    exec(ENV + 'tailscale logout >/dev/null 2>&1; echo RC=$?', 30000)
+      .then(function (r) {
+        clearBusy();
+        snack(/RC=0/.test(r.stdout) ? 'Logged out' : 'Logout failed');
+        poll();
+      });
+  }, 0);
+}
+
+function doRestart() {
+  setBusy('Restarting…');
+  setTimeout(function () {
+    exec(ENV + SERVICE + ' restart >/dev/null 2>&1; echo RC=$?', 30000)
+      .then(function (r) {
+        clearBusy();
+        snack(/RC=0/.test(r.stdout) ? 'Restarted' : 'Restart failed');
+        poll();
+      });
+  }, 0);
+}
+
+function toggleBoot() {
+  if (S.busy) return;
+  setBusy('Saving…');
+  setTimeout(function () {
+    var cmd = S.bootOn ? ENV + 'touch /data/adb/tailscale/NOBOOT; echo OK' : ENV + 'rm -f /data/adb/tailscale/NOBOOT; echo OK';
+    exec(cmd, 8000).then(function () {
+      S.bootOn = !S.bootOn;
+      clearBusy();
+      snack(S.bootOn ? 'Will start on boot' : "Won't start on boot");
     });
+  }, 0);
+}
+
+function setPref(flag, on) {
+  if (S.busy) return;
+  if (!S.daemonUp) { snack('Start Tailscale first'); return; }
+  setBusy('Applying…');
+  setTimeout(function () {
+    exec(ENV + 'tailscale set ' + flag + '=' + (on ? 'true' : 'false') + ' 2>&1; echo RC=$?', 20000)
+      .then(function (r) {
+        clearBusy();
+        var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
+        snack(rc === '0' ? (on ? flag + ' on' : flag + ' off') : 'Failed (RC=' + rc + ')');
+        poll();
+      });
   }, 0);
 }
 
 /* ===== hostname ===== */
-/* Set the Tailscale hostname to the Android device model name
-   instead of "localhost", so it shows up properly in your tailnet. */
-var hostnameSet = false;
 function setHostname() {
-  if (hostnameSet) return;
   exec(ENV + 'getprop ro.product.model 2>/dev/null', 8000).then(function (r) {
     var model = String(r.stdout).trim();
     if (!model || model === 'localhost') return;
     exec(ENV + 'tailscale set --hostname=' + model + ' 2>&1; echo RC=$?', 15000).then(function (r) {
-      if (/RC=0/.test(r.stdout)) {
-        hostnameSet = true;
-        showPrompt('Hostname set to ' + model);
-      }
+      if (/RC=0/.test(r.stdout)) S.hostnameSet = true;
     });
   });
 }
 
-
-
-/* ===== manual update check & download ===== */
-/* Fetch update.json via the browser's native fetch() (WebView often blocks
-   it), falling back to shell curl/wget if available. Tries each shell
-   command once with a short timeout so the user isn't left waiting. */
-function fetchUrl(url, timeoutMs) {
-  return new Promise(function (resolve) {
-    var settled = false;
-    var timer = setTimeout(function () {
-      if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'no network' }); }
-    }, timeoutMs || 8000);
-    var shellSucceeded = false;
-    fetch(url)
-      .then(function (resp) { return resp.text(); })
-      .then(function (text) { if (!settled && !shellSucceeded) { settled = true; clearTimeout(timer); shellSucceeded = true; resolve({ errno: 0, stdout: text, stderr: '' }); } })
-      .catch(function () {
-        /* fetch blocked by WebView — try shell curl/wget once each */
-        var cmds = [
-          'curl -sSL -k ' + url,
-          'wget -qO- --no-check-certificate ' + url
-        ];
-        var i = 0;
-        function tryNext() {
-          if (i >= cmds.length) {
-            if (!settled && !shellSucceeded) {
-              settled = true; clearTimeout(timer);
-              resolve({ errno: -1, stdout: '', stderr: 'no network' });
-            }
-            return;
-          }
-          var cmd = ENV + cmds[i] + ' 2>&1; echo RC=$?';
-          i++;
-          exec(cmd, 4000).then(function (r) {
-            var out = String(r.stdout).trim();
-            var rc = (out.match(/RC=(\d+)/) || [])[1];
-            var body = out.replace(/RC=\d+/, '').trim();
-            if (rc === '0' && body) { if (!settled && !shellSucceeded) { settled = true; clearTimeout(timer); shellSucceeded = true; resolve({ errno: 0, stdout: body, stderr: '' }); } }
-            else tryNext();
-          }).catch(function () { tryNext(); });
-        }
-        tryNext();
-      });
-  });
-}
-
-function checkForUpdates() {
-  $('update-check-btn').textContent = 'Checking…';
-  $('update-check-btn').disabled = true;
-  setTimeout(function () {
-    fetchUrl(UPDATE_JSON, 15000).then(function (r) {
-      $('update-check-btn').textContent = 'Check';
-      $('update-check-btn').disabled = false;
-      var out = String(r.stdout).trim();
-      if (!out) {
-        showPrompt('WebUI can’t reach the network — open GitHub releases in your browser?', false, 0, 'Open', function () {
-          exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1; echo OPEN');
-          showPrompt('Opening GitHub releases…');
-        });
-        return;
-      }
-      try { updateInfo = JSON.parse(out); } catch (e) {
-        showPrompt('Failed to parse update info: ' + out.slice(0, 80), false);
-        return;
-      }
-      if (!updateInfo || !updateInfo.versionCode) {
-        showPrompt('No update info available', false);
-        return;
-      }
-      var remote = parseInt(updateInfo.versionCode, 10);
-      var local = parseInt(currentVersionCode, 10) || 0;
-      if (remote > local) {
-        $('update-new-version').textContent = updateInfo.version;
-        setHidden('update-panel', false);
-      }
-      /* silent when already up to date — user can tap Check manually */
-    }).catch(function () {
-      $('update-check-btn').textContent = 'Check';
-      $('update-check-btn').disabled = false;
-      showPrompt('Update check failed — check logs', false);
-    });
-  }, 0);
-}
-
-function downloadUpdate() {
-  if (!updateInfo || !updateInfo.zipUrl) return;
-  setHidden('update-download-btn', true);
-  setHidden('update-dismiss-btn', true);
-  setHidden('update-progress', false);
-  var dest = '/sdcard/Download/Magisk-Tailscaled-' + updateInfo.version + '.zip';
-  /* try curl with -k first, fall back to plain curl, then wget variants */
-  var fetchCmd = 'curl -sSL -k -o ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
-  var fetchFallback = 'wget -q -O --no-check-certificate ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
-  setTimeout(function () {
-    exec(ENV + fetchCmd, 120000).then(function (r) {
-      var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
-      if (rc === '0') {
-        setHidden('update-progress', true);
-        showPrompt('Downloaded to ' + dest, true);
-        setHidden('update-panel', true);
-      } else {
-        exec(ENV + fetchFallback, 120000).then(function (r2) {
-          setHidden('update-progress', true);
-          var rc2 = (String(r2.stdout).match(/RC=(\d+)/) || [])[1];
-          if (rc2 === '0') {
-            showPrompt('Downloaded to ' + dest, true);
-            setHidden('update-panel', true);
-          } else {
-            showPrompt('Download failed — open releases in browser?', false, 0, 'Open', function () {
-              exec(ENV + 'am start -a android.intent.action.VIEW -d ' + updateInfo.zipUrl + ' >/dev/null 2>&1; echo OPEN');
-              showPrompt('Opening download in browser…');
-            });
-            setHidden('update-download-btn', false);
-            setHidden('update-dismiss-btn', false);
-          }
-        });
-      }
-    });
-  }, 0);
-}
-
-/* ===== render ===== */
-/* Single source of truth for the status phrasing — used by the
-   big switch card, the Connection row, and the module description
-   written back into module.prop, so nothing can show a mismatched state. */
-function statusLine() {
-  if (toggling) return { text: (latest && latest.BackendState === 'Running') ? 'Stopping…' : 'Starting…', hint: '…' };
-  if (loginPending) return { text: 'Generating login URL…', hint: '' };
-  if (restartBusy) return { text: 'Restarting tailscaled…', hint: '' };
-  if (logoutBusy) return { text: 'Logging out…', hint: '' };
-  if (exitBusy) return { text: 'Setting exit node…', hint: '' };
-  if (prefBusy) return { text: 'Applying settings…', hint: '' };
-  if (bootBusy) return { text: 'Saving boot setting…', hint: '' };
-  if (anyBusy()) return { text: 'Working…', hint: '' };
-  if (!daemonUp) return { text: 'Service stopped — tap to start', hint: 'tailscaled is not running' };
-  var backend = latest ? latest.BackendState : null;
-  if (backend === 'Running') return { text: 'Connected — tap to disconnect', hint: bootOn ? 'Reconnects automatically on boot' : 'tailscaled won\u2019t start at boot until this is turned back on' };
-  if (backend === 'NeedsLogin' || backend === 'NoState') return { text: 'Log in to your tailnet', hint: 'tailscaled is running' };
-  if (backend === 'Starting') return { text: 'Starting…', hint: 'Connecting to your tailnet' };
-  if (backend === 'NeedsMachineAuth') return { text: 'Waiting for machine authorization…', hint: 'Approve this device in the Tailscale admin console' };
-  if (backend === 'Stopped') return { text: 'Disconnected — tap to connect', hint: 'tailscaled is running' };
-  return { text: STATE_LABEL[backend] || backend, hint: '' };
-}
-
-function render() {
-  var st = latest;
-  var backend = st ? (st.BackendState || 'NoState') : null;
-  var on = backend === 'Running';
-  var needsLogin = daemonUp && (backend === 'NeedsLogin' || backend === 'NoState');
-  var busy = anyBusy();
-
-  if (needsLogin && st && st.AuthURL) loginUrl = String(st.AuthURL);
-  if (!needsLogin) loginUrl = '';
-
-
-  /* In-flight action feedback: spinner next to the main button + disable
-     competing controls so double-taps can't stack root execs. */
-  setHidden('btn-busy', !busy);
-  /* Main button text depends on state */
-  var btn = $('main-btn');
-  if (needsLogin) {
-    btn.textContent = 'Log in';
-    btn.disabled = busy;
-  } else if (on) {
-    btn.textContent = 'Disconnect';
-    btn.disabled = busy;
-  } else {
-    btn.textContent = 'Connect';
-    btn.disabled = busy || !daemonUp;
-  }
-  $('open-url-btn').disabled = busy || !loginUrl;
-  $('copy-url-btn').disabled = busy || !loginUrl;
-
-  var sl = statusLine();
-  setText('status-text', sl.text);
-  setText('status-hint', sl.hint);
-  /* Status badge color */
-  var badge = $('status-badge');
-  if (needsLogin) { badge.textContent = 'Log in required'; badge.className = 'status-badge offline'; }
-  else if (on) { badge.textContent = 'Connected'; badge.className = 'status-badge online'; }
-  else { badge.textContent = 'Not connected'; badge.className = 'status-badge offline'; }
-
-  /* Login URL row (shown when logged out) */
-  setHidden('login-url-box', !loginUrl);
-  if (loginUrl) {
-    var html = '<a href="' + esc(loginUrl) + '" target="_blank" rel="noopener">' + esc(loginUrl) + '</a>';
-    if (html !== urlHtml) { urlHtml = html; $('login-url').innerHTML = html; }
-  }
-
-  /* info rows */
-  var s = (st && st.Self) || null;
-  setText('kv-ip4', (on && s && s.TailscaleIPs && s.TailscaleIPs[0]) || '—');
-  setText('kv-ip6', (on && s && s.TailscaleIPs && s.TailscaleIPs[1]) || '—');
-  setText('kv-exit', on && st && st.ExitNodeStatus ? ((st.ExitNodeStatus.TailscaleIPs && st.ExitNodeStatus.TailscaleIPs[0]) || 'in use') : 'none');
-  setText('kv-state', daemonUp ? (STATE_LABEL[backend] || backend || '—') : 'daemon stopped');
-
-  /* health warnings straight from the daemon (login errors etc.) —
-     the one place they're visible outside the raw log */
-  var health = (st && st.Health && st.Health.length) ? st.Health : null;
-  var hsig = health ? health.join('|') : '';
-  if (hsig !== healthSig) {
-    healthSig = hsig;
-    $('health-list').innerHTML = health
-      ? health.map(function (h) { return '<div class="health-item">' + esc(h) + '</div>'; }).join('')
-      : '';
-  }
-  setHidden('health-box', !health);
-
-  /* devices page */
-  setText('kv-host', (s && s.HostName) || '—');
-  setText('kv-self-ip4', (s && s.TailscaleIPs && s.TailscaleIPs[0]) || '—');
-  setText('kv-self-os', (s && s.OS) || '—');
-  renderPeers(st, on);
-
-  /* Set hostname to Android device model when connected */
-  if (on && !hostnameSet) setHostname();
-
-  /* settings */
-  var canSet = daemonUp && (backend === 'Running' || backend === 'Starting');
-  /* Only update switch state from prefs when not in the middle of a setPref
-     exec, otherwise render() overrides the md-switch's native toggle with
-     stale prefs while the command is still in flight. */
-  if (!prefBusy) {
-    setSwitch('sw-accept-dns', prefs ? !!prefs.CorpDNS : false);
-    setSwitch('sw-accept-routes', prefs ? !!prefs.RouteAll : false);
-    setSwitch('sw-adv-exit', prefs ? (String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) : false);
-    setSwitch('sw-lan-access', prefs ? !!prefs.ExitNodeAllowLANAccess : false);
-  }
-  var exName = 'None';
-  if (prefs && (prefs.ExitNodeIP || prefs.ExitNodeID)) {
-    exName = prefs.ExitNodeIP || prefs.ExitNodeID || 'in use';
-    if (st && st.Peer) {
-      Object.keys(st.Peer).forEach(function (k) {
-        var p = st.Peer[k];
-        if (ip4(p) === exName && p.HostName) exName = p.HostName;
-      });
-    }
-  }
-  setText('exitnode-current', exName);
-
-  var rows = ['row-accept-dns', 'row-accept-routes', 'row-adv-exit', 'row-lan-access'];
-  rows.forEach(function (id) { $(id).classList.toggle('disabled', !canSet); });
-}
-
-function renderPeers(st, on) {
-  if (!daemonUp || !st || !st.Peer) {
-    if (peersSig !== 'off') {
-      peersSig = 'off';
-      $('peers-count').textContent = '';
-      $('peers-list').innerHTML = '<div class="peer-row"><span class="peer-sub">Start Tailscale to see your devices.</span></div>';
-    }
-    return;
-  }
-  var peers = Object.keys(st.Peer).map(function (k) { return st.Peer[k]; });
-  peers.sort(function (a, b) {
-    return (b.Online === true) - (a.Online === true) ||
-      String(a.HostName).localeCompare(String(b.HostName));
-  });
-  var sig = peers.map(function (p) {
-    return [p.ID || '', p.HostName || '', p.Online ? 1 : 0, ip4(p), p.ExitNode ? 1 : 0, p.ExitNodeOption ? 1 : 0, p.LastSeen || ''].join('|');
-  }).join(';');
-  if (sig === peersSig) return;
-  peersSig = sig;
-  $('peers-count').textContent = '(' + peers.length + ')';
-  if (!peers.length) {
-    $('peers-list').innerHTML = '<div class="peer-row"><span class="peer-sub">No other devices in your tailnet.</span></div>';
-    return;
-  }
-  $('peers-list').innerHTML = peers.map(function (p) {
-    var meta = [];
-    if (p.ExitNode) meta.push('current exit node');
-    if (!p.Online && p.LastSeen) meta.push('last seen ' + String(p.LastSeen).replace('T', ' ').slice(0, 16));
-    return '<div class="peer-row" data-node="' + esc(ip4(p)) + '" data-name="' + esc(p.HostName || '') + '">' +
-      '<span class="peer-dot' + (p.Online ? ' on' : '') + '"></span>' +
-      '<span class="peer-main"><span class="peer-name">' + esc(p.HostName || p.ID || '?') +
-      (p.ExitNode ? '<span class="tag">EXIT</span>' : '') +
-      (p.ExitNodeOption && !p.ExitNode ? '<span class="tag">can exit</span>' : '') + '</span>' +
-      (meta.length ? '<span class="peer-sub">' + esc(meta.join(' · ')) + '</span>' : '') + '</span>' +
-      '<span class="peer-ip">' + esc(ip4(p)) + '</span></div>';
-  }).join('');
-}
-
-function renderVersion() {
-  setText('version-text', 'tailscale ' + (versionStr || '?'));
-}
-
-/* ===== actions ===== */
-/* ===== main button action ===== */
-function doMainAction() {
-  if (anyBusy()) return;
-  var backend = latest ? latest.BackendState : null;
-  var needsLogin = daemonUp && (backend === 'NeedsLogin' || backend === 'NoState');
-  if (needsLogin) { startLogin(); return; }
-  toggleVPN();
-}
-
-function toggleVPN() {
-  if (toggling) return;
-  var on = latest && latest.BackendState === 'Running';
-  toggling = true; render();
-  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
-  setTimeout(function () {
-    var cmd = on
-      ? ENV + 'tailscale down >/dev/null 2>&1; echo RC=$?'
-      : ENV + SERVICE + ' start >/dev/null 2>&1; R=$?; sleep 2; timeout 8 tailscale up >/dev/null 2>&1 || true; echo RC=$R';
-    exec(cmd, 45000).then(function (r) {
-    toggling = false;
-    var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
-    showPrompt(on ? (rc === '0' ? 'Disconnected' : 'Disconnect failed — check logs')
-      : (rc === '0' ? 'Starting…' : 'Start failed — check logs'), rc === '0');
-    poll();
-    });
-  }, 0);
-}
-
-function startLogin() {
-  if (loginPending) return;
-  if (latest && latest.AuthURL) {
-    loginUrl = String(latest.AuthURL);
-    showLoginUrlReady();
-    return;
-  }
-  loginPending = true;
-  /* show spinner on main button right away so the UI never looks frozen */
-  $('btn-busy').removeAttribute('hidden');
-  $('login-url-box').removeAttribute('hidden');
-  setText('login-url', 'Generating login URL…');
-  render();
-  /* yield to the browser so the overlay paints before ksu.exec blocks */
-  setTimeout(function () {
-    exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
-      .then(function (r) {
-      loginPending = false;
-      $('btn-busy').setAttribute('hidden', '');
-      loginUrl = r.stdout.trim();
-      if (loginUrl) {
-        showLoginUrlReady();
-      } else {
-        setText('login-url', 'Could not get a login URL');
-        showPrompt('Could not get a login URL — try: su -c tailscale login', false, 5000);
-      }
-    });
-  }, 0);
-}
-function showLoginUrlReady() {
-  $('login-url-box').removeAttribute('hidden');
-  setText('login-url', loginUrl);
-  urlHtml = '';
-  render();
-  showPrompt('Login URL ready — tap Open in browser');
-}
-function openLoginUrl() {
-  if (!loginUrl) return;
-  exec(ENV + 'am start -a android.intent.action.VIEW -d "' + loginUrl + '" >/dev/null 2>&1; echo OPEN');
-  showPrompt('Opening browser…');
-}
-function copyLoginUrl() {
-  if (!loginUrl) return;
-  try {
-    navigator.clipboard.writeText(loginUrl).then(function () { showPrompt('URL copied'); },
-      function () { showPrompt(loginUrl, true, 5000); });
-  } catch (e) { showPrompt(loginUrl, true, 5000); }
-}
-
-function pingPeer(node, name) {
-  if (!node) return;
-  showPrompt('Pinging ' + (name || node) + '…', true, 15000);
-  exec(ENV + 'tailscale ping --timeout 3s -c 4 ' + node + ' 2>&1 | head -n 4', 25000)
-    .then(function (r) {
-      var m = String(r.stdout).match(/via (\S+)[^\n]* in ([\d.]+ms)/);
-      showPrompt(m ? ((name || node) + ': ' + m[2] + ' via ' + m[1]) : (r.stdout.trim() || 'no response'), true, 5000);
-    });
-}
-
-var PREF_MAP = {
-  'row-accept-dns': '--accept-dns',
-  'row-accept-routes': '--accept-routes',
-  'row-adv-exit': '--advertise-exit-node',
-  'row-lan-access': '--exit-node-allow-lan-access'
-};
-function setPref(flag, on) {
-  if (prefBusy) return;
-  prefBusy = true; render();
-  var val = (flag === '--advertise-exit-node')
-    ? (on ? '--advertise-exit-node=true' : '--advertise-exit-node=false')
-    : (flag + '=' + (on ? 'true' : 'false'));
-  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
-  setTimeout(function () {
-    exec(ENV + 'tailscale set ' + val + ' 2>&1; echo RC=$?', 20000).then(function (r) {
-    prefBusy = false;
-    var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
-    if (!/RC=0/.test(r.stdout)) showPrompt('Setting failed (RC=' + rc + ') — check logs', false);
-    else showPrompt(on ? 'Setting on' : 'Setting off');
-    poll();
-    });
-  }, 0);
-}
-
-function openExitDialog() {
-  var box = $('exitnode-list');
-  var current = prefs ? (prefs.ExitNodeIP || prefs.ExitNodeID || '') : '';
-  var opts = [];
-  if (latest && latest.Peer) {
-    Object.keys(latest.Peer).forEach(function (k) {
-      var p = latest.Peer[k];
-      if (p.ExitNodeOption) opts.push(p);
-    });
-  }
-  opts.sort(function (a, b) { return String(a.HostName).localeCompare(String(b.HostName)); });
-  var html = '<div class="radio-row" data-node="">' +
-    '<span class="peer-name">None</span><span class="peer-sub" style="flex-grow:1"></span>' +
-    '<md-radio name="exitopt" ' + (current ? '' : 'checked') + '></md-radio></div>';
-  html += opts.map(function (p) {
-    var sel = current && current === ip4(p);
-    return '<div class="radio-row" data-node="' + esc(ip4(p)) + '">' +
-      '<span class="peer-name">' + esc(p.HostName || '?') + '</span>' +
-      '<span class="peer-sub">' + esc(ip4(p)) + ' · ' + (p.Online ? 'online' : 'offline') + '</span>' +
-      '<md-radio name="exitopt" ' + (sel ? 'checked' : '') + '></md-radio></div>';
-  }).join('');
-  box.innerHTML = html;
-  setDialogOpen(true);
-  $('exitnode-dialog').show();
-}
-function setExitNode(node) {
-  if (exitBusy) return;
-  exitBusy = true; render();
-  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
-  setTimeout(function () {
-    exec(ENV + 'tailscale set --exit-node=' + (node || '') + ' 2>&1; echo RC=$?', 20000).then(function (r) {
-    exitBusy = false;
-    if (!/RC=0/.test(r.stdout)) showPrompt('Failed to set exit node — check logs', false);
-    else showPrompt(node ? 'Exit node set' : 'Exit node cleared');
-    poll();
-  });
-  }, 0);
-}
-
-function restartService() {
-  if (restartBusy) return;
-  restartBusy = true; render();
-  showPrompt('Restarting tailscaled…', true, 8000);
-  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
-  setTimeout(function () {
-    exec(ENV + SERVICE + ' restart >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
-    restartBusy = false;
-    showPrompt(/RC=0/.test(r.stdout) ? 'Service restarted' : 'Restart issue — check logs', /RC=0/.test(r.stdout));
-    });
-  }, 0);
-}
-
-function doLogout() {
-  setDialogOpen(true);
-  $('logout-dialog').show();
-}
-function confirmLogout() {
-  if (logoutBusy) return;
-  logoutBusy = true; render();
-  showPrompt('Logging out…', true, 8000);
-  /* yield to the browser so the busy overlay paints before ksu.exec blocks */
-  setTimeout(function () {
-    exec(ENV + 'tailscale logout >/dev/null 2>&1; echo RC=$?', 30000).then(function (r) {
-    logoutBusy = false;
-    lastDescKey = null;
-    showPrompt(/RC=0/.test(r.stdout) ? 'Logged out' : 'Logout issue — check logs', /RC=0/.test(r.stdout));
-    loginUrl = '';
-    });
-  }, 0);
-}
-
-/* ===== logs terminal ===== */
-function loadLogs() {
-  exec(ENV + 'tail -n 200 ' + LOGFILE + " 2>/dev/null || echo '(no daemon log)'", 12000)
-    .then(function (r) { $('logs-content').textContent = r.stdout.trim() || '(empty)'; });
-}
+/* ===== logs ===== */
+var logTimer = null;
 function openLogs() {
-  if (logsOpen) return;
-  logsOpen = true;
-  $('logs-terminal').classList.add('open');
-  $('logs-terminal').removeAttribute('unresolved');
-  $('back-button').classList.add('show');
-  $('back-button').removeAttribute('hidden');
+  setHidden('log-overlay', false);
   loadLogs();
-  logsTimer = setInterval(loadLogs, 5000);
+  logTimer = setInterval(loadLogs, 5000);
 }
 function closeLogs() {
-  if (!logsOpen) return;
-  logsOpen = false;
-  $('logs-terminal').classList.remove('open');
-  $('back-button').classList.remove('show');
-  $('back-button').setAttribute('hidden', '');
-  if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+  setHidden('log-overlay', true);
+  if (logTimer) { clearInterval(logTimer); logTimer = null; }
+}
+function loadLogs() {
+  exec(ENV + 'tail -n 200 ' + LOGFILE + " 2>/dev/null || echo '(no daemon log)'", 12000)
+    .then(function (r) { setText('log-content', r.stdout.trim() || '(empty)'); });
 }
 
-/* ===== banner / bridge probe ===== */
-var probeTries = 0, probeTimer = null;
-function updateBanner() {
-  setHidden('bridge-banner', bridgeOK);
-  document.body.classList.toggle('has-banner', !bridgeOK);
-  if (bridgeOK && probeTimer) { clearInterval(probeTimer); probeTimer = null; }
-}
-function probeBridge() {
-  probeTries = 0;
-  if (probeTimer) clearInterval(probeTimer);
-  probeTimer = setInterval(function () {
-    probeTries++;
-    if (bridgeOK) { updateBanner(); return; }
-    if (typeof ksu !== 'undefined' && ksu.exec) {
-      exec(ENV + 'echo BRIDGE_OK', 4000).then(function (r) {
-        if (String(r.stdout).indexOf('BRIDGE_OK') !== -1) { bridgeOK = true; updateBanner(); poll(); }
-      });
-    }
-    if (probeTries > 30 && probeTimer) { clearInterval(probeTimer); probeTimer = null; }
-  }, 1000);
+/* ===== update check ===== */
+var currentVersionCode = '';
+function checkUpdate() {
+  setText('update-current', 'Checking…');
+  fetch(UPDATE_JSON)
+    .then(function (r) { return r.text(); })
+    .then(function (text) {
+      try {
+        var info = JSON.parse(text);
+        var remote = parseInt(info.versionCode, 10);
+        var local = parseInt(currentVersionCode, 10) || 0;
+        if (remote > local) {
+          snack('Update available: ' + info.version);
+          setTimeout(function () { exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1'); }, 500);
+        } else {
+          snack('You are on the latest version');
+        }
+      } catch (e) { snack('Failed to parse update info'); }
+      setText('update-current', '');
+    })
+    .catch(function () {
+      setText('update-current', '');
+      snack("Can't reach GitHub — opening releases");
+      exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1');
+    });
 }
 
-/* ===== nav ===== */
+/* ===== navigation ===== */
 function navTo(page) {
-  document.querySelectorAll('.page-view').forEach(function (v) {
-    if (v.id === 'page-' + page) v.setAttribute('data-active', 'true');
-    else v.removeAttribute('data-active');
+  document.querySelectorAll('.page').forEach(function (p) {
+    if (p.dataset.page === page) p.setAttribute('data-active', ''); else p.removeAttribute('data-active');
   });
-  document.querySelectorAll('.bottom-bar-item').forEach(function (b) {
-    if (b.getAttribute('page') === page) b.setAttribute('selected', '');
-    else b.removeAttribute('selected');
+  document.querySelectorAll('.nav-item').forEach(function (n) {
+    if (n.dataset.page === page) n.setAttribute('data-active', ''); else n.removeAttribute('data-active');
   });
 }
 
-/* ===== events (all delegated, registered once) ===== */
-function wireEvents() {
-  document.querySelectorAll('.bottom-bar-item').forEach(function (b) {
-    b.addEventListener('click', function () { navTo(b.getAttribute('page')); });
+/* ===== wire events ===== */
+function wire() {
+  document.querySelectorAll('.nav-item').forEach(function (n) {
+    n.addEventListener('click', function () { navTo(n.dataset.page); });
   });
 
-  $('status-box').addEventListener('click', doMainAction);
-  $('main-btn').addEventListener('click', doMainAction);
-  $('open-url-btn').addEventListener('click', openLoginUrl);
-  $('copy-url-btn').addEventListener('click', copyLoginUrl);
-  $('retry-btn').addEventListener('click', probeBridge);
-  $('back-button').addEventListener('click', closeLogs);
-  $('logs-btn').addEventListener('click', function () { logsOpen ? closeLogs() : openLogs(); });
-  $('logs-row').addEventListener('click', openLogs);
-  $('clear-log-btn').addEventListener('click', function () { $('logs-content').textContent = '(cleared)'; });
-  $('github-row').addEventListener('click', function () {
-    exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + ' >/dev/null 2>&1; echo OPEN');
-    showPrompt('Opening GitHub…');
+  $('action-btn').addEventListener('click', doAction);
+  $('status-card').addEventListener('click', doAction);
+  $('open-url-btn').addEventListener('click', function () {
+    exec(ENV + 'am start -a android.intent.action.VIEW -d "' + S.loginUrl + '" >/dev/null 2>&1');
+    snack('Opening browser…');
   });
-  $('update-check-btn').addEventListener('click', checkForUpdates);
-  $('update-download-btn').addEventListener('click', downloadUpdate);
-  $('update-dismiss-btn').addEventListener('click', function () {
-    setHidden('update-panel', true);
+  $('copy-url-btn').addEventListener('click', function () {
+    try { navigator.clipboard.writeText(S.loginUrl).then(function () { snack('Copied'); }); }
+    catch (e) { snack(S.loginUrl); }
   });
-  $('restart-row').addEventListener('click', restartService);
-  $('logout-row').addEventListener('click', doLogout);
-  $('logout-cancel').addEventListener('click', function () { setDialogOpen(false); $('logout-dialog').close(); });
-  $('logout-confirm').addEventListener('click', function () {
-    $('logout-dialog').close(); setDialogOpen(false); confirmLogout();
-  });
-  $('exitnode-row').addEventListener('click', openExitDialog);
+
   $('row-boot').addEventListener('click', toggleBoot);
-  $('exitnode-close').addEventListener('click', function () { setDialogOpen(false); $('exitnode-dialog').close(); });
-  $('exitnode-list').addEventListener('click', function (e) {
-    var row = e.target.closest ? e.target.closest('.radio-row') : null;
-    if (!row) return;
-    setDialogOpen(false);
-    $('exitnode-dialog').close();
-    setExitNode(row.getAttribute('data-node') || '');
-  });
-
-  $('peers-list').addEventListener('click', function (e) {
-    var row = e.target.closest ? e.target.closest('.peer-row') : null;
-    if (row && row.getAttribute('data-node')) {
-      pingPeer(row.getAttribute('data-node'), row.getAttribute('data-name'));
-    }
-  });
-
-  ['row-accept-dns', 'row-accept-routes', 'row-adv-exit', 'row-lan-access'].forEach(function (id) {
-    $(id).addEventListener('click', function () {
-      if ($(id).classList.contains('disabled')) { showPrompt('Log in first to change settings', false); return; }
-      var current;
-      if (id === 'row-accept-dns') current = prefs && !!prefs.CorpDNS;
-      else if (id === 'row-accept-routes') current = prefs && !!prefs.RouteAll;
-      else if (id === 'row-adv-exit') current = prefs && String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1;
-      else current = prefs && !!prefs.ExitNodeAllowLANAccess;
-      setPref(PREF_MAP[id], !current);
+  var prefRows = { 'row-dns': '--accept-dns', 'row-routes': '--accept-routes', 'row-exit-adv': '--advertise-exit-node', 'row-lan': '--exit-node-allow-lan-access' };
+  Object.keys(prefRows).forEach(function (rowId) {
+    $(rowId).addEventListener('click', function (e) {
+      if (e.target.closest('md-switch')) return;
+      var flag = prefRows[rowId], current = false;
+      if (flag === '--accept-dns') current = S.prefs && !!S.prefs.CorpDNS;
+      else if (flag === '--accept-routes') current = S.prefs && !!S.prefs.RouteAll;
+      else if (flag === '--advertise-exit-node') current = S.prefs && String(S.prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1;
+      else current = S.prefs && !!S.prefs.ExitNodeAllowLANAccess;
+      setPref(flag, !current);
     });
   });
 
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLogs(); });
+  $('row-restart').addEventListener('click', doRestart);
+  $('row-logout').addEventListener('click', function () { setHidden('logout-overlay', false); });
+  $('logout-cancel-btn').addEventListener('click', function () { setHidden('logout-overlay', true); });
+  $('logout-confirm-btn').addEventListener('click', confirmLogout);
+
+  $('row-logs').addEventListener('click', openLogs);
+  $('log-close-btn').addEventListener('click', closeLogs);
+  $('row-update').addEventListener('click', checkUpdate);
+  $('row-github').addEventListener('click', function () {
+    exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + ' >/dev/null 2>&1');
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeLogs(); setHidden('logout-overlay', true); }
+  });
+
+  window.addEventListener('pageshow', function () { schedulePoll(200); });
+  window.addEventListener('focus', function () { schedulePoll(200); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') schedulePoll(200); });
 }
 
 /* ===== boot ===== */
 function boot() {
-  document.querySelectorAll('[unresolved]').forEach(function (el) { el.removeAttribute('unresolved'); });
-  wireEvents();
-  renderVersion();
-  var pg = location.search.match(/page=(home|devices|more)/);
-  if (pg) navTo(pg[1]);
-
+  wire();
   exec(ENV + 'grep "^version=" ' + MODPROP + ' 2>/dev/null | head -1 | cut -d= -f2', 8000).then(function (r) {
     var v = r.stdout.trim();
-    if (v) setText('module-version', 'Magisk-Tailscaled ' + v + ' · ' + GITHUB.replace('https://', ''));
+    if (v) setText('version-text', v);
   });
   exec(ENV + 'grep "^versionCode=" ' + MODPROP + ' 2>/dev/null | head -1 | cut -d= -f2', 8000).then(function (r) {
-    var vc = r.stdout.trim();
-    if (vc) currentVersionCode = vc;
+    currentVersionCode = r.stdout.trim();
   });
-  /* Auto-check for updates on boot */
-  checkForUpdates();
-
-  if (typeof ksu === 'undefined' && !isMock) {
-    updateBanner();
-    probeBridge();
-  } else {
-    bridgeOK = true;
-    updateBanner();
-  }
-  readBootFlag();
   schedulePoll(0);
-
-  /* Re-sync immediately when the manager brings the page back to front. */
-  window.addEventListener('pageshow', function () { schedulePoll(200); });
-  window.addEventListener('focus', function () { schedulePoll(200); });
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') schedulePoll(200);
-  });
-
-  /* MMRL WebUI X back interception (backInterceptor: "javascript"):
-     close the log terminal first, then return to Home, then exit. */
-  window.addEventListener('back', function () {
-    if (logsOpen) { closeLogs(); return; }
-    var active = document.querySelector('.page-view[data-active="true"]');
-    var onHome = !active || active.id === 'page-home';
-    if (!onHome) { navTo('home'); return; }
-    if (typeof webui !== 'undefined' && webui && typeof webui.exit === 'function') webui.exit();
-  });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

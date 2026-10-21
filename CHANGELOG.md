@@ -1,3 +1,12 @@
+## v2.8.0.0 — Clean rebuild
+
+- **Complete WebUI rewrite** — rebuilt from scratch modeled on the official Tailscale Android app. Two pages (Home / Settings), single state object, no more monolithic 941-line JS with 25 globals.
+- **Home**: status dot (green/red/orange), status text, one big action button (Connect / Disconnect / Log in), connection info card (IPv4, IPv6, exit node, hostname), device list with online/offline dots.
+- **Settings**: boot toggle, Accept DNS, Accept routes, Advertise exit node, Allow LAN access, restart/logout, logs, update check, GitHub link — all in clean cards with proper switches.
+- **Cleaner visuals**: minimal Material 3 tokens, card-based layout, no more 839-line CSS with 12 unused classes.
+- **Faster**: single poll reads everything in one exec (status + prefs + boot flag + version), adaptive 4s/15s polling.
+- **Simpler update check**: uses `fetch()`, falls back to opening GitHub releases in browser.
+
 ## v2.7.5.0
 
 - **Settings switches fixed** — `--advertise-exit-node` flag now uses proper `=true`/`=false` format (was missing the value). `setPref` now calls `poll()` after completing so the UI refreshes, and shows the RC code in error messages for debugging.
