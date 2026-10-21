@@ -796,3 +796,57 @@ body.dlg {
     overflow: hidden;
     touch-action: none;
 }
+
+
+/* ===== Manual update panel ===== */
+.update-panel {
+    width: calc(100% - 32px);
+    margin-bottom: 16px;
+}
+.update-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.update-title {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--md-sys-color-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.update-version {
+    font-size: 1em;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+    background-color: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+.update-changelog {
+    font-size: 0.85em;
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+.update-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.update-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    color: var(--md-sys-color-primary);
+}
+.update-progress .spinner-sm {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}

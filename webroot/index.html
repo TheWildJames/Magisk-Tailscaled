@@ -217,6 +217,33 @@
                             </md-icon>
                             <span class="list-item-content">Module<small id="module-version">Magisk-Tailscaled</small></span>
                         </div>
+                        <!-- Manual update check -->
+                        <div class="list-item" id="update-row">
+                            <md-ripple></md-ripple>
+                            <md-icon class="leading-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M240-80q-29 0-49.5-20.5T160-200v-560q0-29 20.5-49.5T240-320v-80q0-42 29.5-71.5T400-800q42 0 71.5 29.5T560-640q0-42 29.5-71.5T720-880q42 0 71.5 29.5T880-720q0-42 20.5-71.5T920-880v80q0-42-20.5-71.5T800-640q-42 0-71.5 29.5T640-320v80q0-29-20.5-49.5T560-440q-29 0-49.5 20.5T440-280v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v560q0 50 35 85t85 35q50 0 85-35t35-85v-80q0-42-20.5-71.5T640-640q-42 0-71.5 29.5T480-480q-42 0-71.5-29.5T320-880v80q0-42-20.5-71.5T200-880q-42 0-71.5 29.5T80-720q0-42 20.5-71.5T120-640q0-42 20.5-71.5T160-400q0-29-20.5-49.5T80-160v80q0-42-20.5-71.5T40-320v560q0 42 20.5 71.5T80-80q42 0 71.5 29.5T160-80Zm400-120q-29 0-49.5-20.5T560-280v-80q0-29-20.5-49.5T440-480v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v560q0 50 35 85t85 35q50 0 85-35t35-85v-80q0-42-20.5-71.5T640-640q-42 0-71.5 29.5T480-480q-42 0-71.5-29.5T320-880v80q0-42-20.5-71.5T200-880q-42 0-71.5 29.5T80-720q0-42 20.5-71.5T120-640q0-42 20.5-71.5T160-400q0-29-20.5-49.5T80-160v80q0-42-20.5-71.5T40-320v560q0 42 20.5 71.5T80-80q42 0 71.5 29.5T160-80Z"/></svg>
+                            </md-icon>
+                            <span class="list-item-content">Check for update<small id="update-current">v2.6.6.0</small></span>
+                            <md-text-button id="update-check-btn">Check</md-text-button>
+                        </div>
+                        <!-- Update available panel -->
+                        <div class="box update-panel" id="update-panel" hidden>
+                            <div class="box-content">
+                                <div class="update-header">
+                                    <span class="update-title">Update available</span>
+                                    <span class="update-version" id="update-new-version"></span>
+                                </div>
+                                <div class="update-changelog" id="update-changelog"></div>
+                                <div class="update-actions">
+                                    <md-filled-button id="update-download-btn">Download</md-filled-button>
+                                    <md-text-button id="update-dismiss-btn">Dismiss</md-text-button>
+                                    <div class="update-progress" id="update-progress" hidden>
+                                        <div class="spinner-sm"></div>
+                                        <span>Downloading…</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="placeholder"></div>

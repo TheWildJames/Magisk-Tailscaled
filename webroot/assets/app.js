@@ -20,6 +20,7 @@ var SERVICE = '/data/adb/tailscale/scripts/tailscaled.service';
 var MODPROP = '/data/adb/modules/magisk-tailscaled/module.prop';
 var LOGFILE = '/data/adb/tailscale/run/tailscaled.log';
 var GITHUB = 'https://github.com/TheWildJames/Magisk-Tailscaled';
+var UPDATE_JSON = GITHUB + '/raw/main/update.json';
 
 /* ===== mock bridge (?mock=1 / ?mock=login) ===== */
 var isMock = location.search.indexOf('mock') !== -1;
@@ -134,6 +135,8 @@ var bootOn = true, healthSig = '\u0000', lastDescKey = null;
 var peersSig = '', urlHtml = '';
 var logsOpen = false, logsTimer = null;
 var dialogOpen = false;
+var updateInfo = null;
+var currentVersionCode = '';
 
 /* any in-flight root action → progress bar, block double-taps */
 function anyBusy() {
@@ -274,6 +277,62 @@ function toggleBoot() {
     bootOn = !bootOn;
     paintBoot();
     showPrompt(bootOn ? 'tailscaled will start on boot' : 'tailscaled won\u2019t start on boot');
+    });
+  }, 0);
+}
+
+
+
+/* ===== manual update check & download ===== */
+function checkForUpdates() {
+  $('update-check-btn').textContent = 'Checking…';
+  $('update-check-btn').disabled = true;
+  /* yield so the button text paints before ksu.exec blocks */
+  setTimeout(function () {
+    exec(ENV + 'curl -sL ' + UPDATE_JSON + ' 2>/dev/null', 15000).then(function (r) {
+      $('update-check-btn').textContent = 'Check';
+      $('update-check-btn').disabled = false;
+      try { updateInfo = JSON.parse(r.stdout); } catch (e) {
+        showPrompt('Failed to parse update info', false);
+        return;
+      }
+      if (!updateInfo || !updateInfo.versionCode) {
+        showPrompt('No update info available', false);
+        return;
+      }
+      var remote = parseInt(updateInfo.versionCode, 10);
+      var local = parseInt(currentVersionCode, 10) || 0;
+      if (remote > local) {
+        $('update-new-version').textContent = updateInfo.version;
+        setHidden('update-panel', false);
+      }
+      /* silent when already up to date — user can tap Check manually */
+    }).catch(function () {
+      $('update-check-btn').textContent = 'Check';
+      $('update-check-btn').disabled = false;
+      showPrompt('Update check failed — check logs', false);
+    });
+  }, 0);
+}
+
+function downloadUpdate() {
+  if (!updateInfo || !updateInfo.zipUrl) return;
+  setHidden('update-download-btn', true);
+  setHidden('update-dismiss-btn', true);
+  setHidden('update-progress', false);
+  var dest = '/sdcard/Download/Magisk-Tailscaled-' + updateInfo.version + '.zip';
+  setTimeout(function () {
+    exec(ENV + 'curl -L -o ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?', 120000).then(function (r) {
+      setHidden('update-progress', true);
+      var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
+      if (rc === '0') {
+        showPrompt('Downloaded to ' + dest, true);
+        setHidden('update-panel', true);
+      } else {
+        showPrompt('Download failed — check logs', false);
+        setHidden('update-download-btn', false);
+        setHidden('update-dismiss-btn', false);
+      }
     });
   }, 0);
 }
@@ -679,6 +738,11 @@ function wireEvents() {
     exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + ' >/dev/null 2>&1; echo OPEN');
     showPrompt('Opening GitHub…');
   });
+  $('update-check-btn').addEventListener('click', checkForUpdates);
+  $('update-download-btn').addEventListener('click', downloadUpdate);
+  $('update-dismiss-btn').addEventListener('click', function () {
+    setHidden('update-panel', true);
+  });
   $('restart-row').addEventListener('click', restartService);
   $('logout-row').addEventListener('click', doLogout);
   $('logout-cancel').addEventListener('click', function () { setDialogOpen(false); $('logout-dialog').close(); });
@@ -730,6 +794,12 @@ function boot() {
     var v = r.stdout.trim();
     if (v) setText('module-version', 'Magisk-Tailscaled ' + v + ' · ' + GITHUB.replace('https://', ''));
   });
+  exec(ENV + 'grep "^versionCode=" ' + MODPROP + ' 2>/dev/null | head -1 | cut -d= -f2', 8000).then(function (r) {
+    var vc = r.stdout.trim();
+    if (vc) currentVersionCode = vc;
+  });
+  /* Auto-check for updates on boot */
+  checkForUpdates();
 
   if (typeof ksu === 'undefined' && !isMock) {
     updateBanner();

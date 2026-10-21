@@ -1,3 +1,8 @@
+## v2.6.6.0
+
+- **Manual update button** — "Check for update" in the More page fetches update.json from GitHub and compares against your installed versionCode. If a newer release exists, it shows the version + changelog and a "Download" button that pulls the zip to /sdcard/Download/ via curl. The panel auto-checks on boot and stays silent when you're already current.
+- **Update panel** — dismissible, shows the new version number, with Download/Dismiss buttons and an inline spinner while downloading.
+
 ## v2.6.5.0
 
 - **Redesigned main UI around the switch** — the main toggle is now the primary action on the home page, not a big tap button. The switch sits prominently at the top of the status card with the status text below it.
