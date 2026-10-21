@@ -1,3 +1,8 @@
+## v2.7.4.0
+
+- **Faster update check** — shell fallback now tries curl/wget once each with a 4s timeout instead of 8 commands × 15s. The "Checking…" state resolves in seconds, not minutes, then shows the browser "Open" button if the WebView can't reach the network.
+- **Update panel** — when a newer release exists, shows the new version with Download/Dismiss buttons and an inline spinner while downloading.
+
 ## v2.7.3.0
 
 - **Settings switches fixed** — switches now use `setAttribute`/`removeAttribute` instead of the `selected` property, and `render()` skips switch updates while a `setPref` exec is in flight, so the md-switch's native toggle isn't overridden by stale prefs. Taps register correctly.

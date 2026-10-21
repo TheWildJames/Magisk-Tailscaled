@@ -303,30 +303,24 @@ function setHostname() {
 
 
 /* ===== manual update check & download ===== */
-/* Fetch update.json via the browser's native fetch() (WebView has network
-   access without needing curl/wget installed), falling back to shell
-   curl/wget if fetch is blocked. Same pattern bindhosts uses. */
+/* Fetch update.json via the browser's native fetch() (WebView often blocks
+   it), falling back to shell curl/wget if available. Tries each shell
+   command once with a short timeout so the user isn't left waiting. */
 function fetchUrl(url, timeoutMs) {
   return new Promise(function (resolve) {
     var settled = false;
     var timer = setTimeout(function () {
       if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'no network' }); }
-    }, timeoutMs || 15000);
+    }, timeoutMs || 8000);
     var shellSucceeded = false;
     fetch(url)
       .then(function (resp) { return resp.text(); })
       .then(function (text) { if (!settled && !shellSucceeded) { settled = true; clearTimeout(timer); shellSucceeded = true; resolve({ errno: 0, stdout: text, stderr: '' }); } })
       .catch(function () {
-        /* fetch blocked by WebView — try shell curl/wget */
+        /* fetch blocked by WebView — try shell curl/wget once each */
         var cmds = [
           'curl -sSL -k ' + url,
-          'curl -sSL ' + url,
-          'wget -qO- --no-check-certificate ' + url,
-          'wget -qO- ' + url,
-          'busybox wget -qO- --no-check-certificate ' + url,
-          'busybox wget -qO- ' + url,
-          'toybox wget -qO- --no-check-certificate ' + url,
-          'toybox wget -qO- ' + url
+          'wget -qO- --no-check-certificate ' + url
         ];
         var i = 0;
         function tryNext() {
@@ -339,7 +333,7 @@ function fetchUrl(url, timeoutMs) {
           }
           var cmd = ENV + cmds[i] + ' 2>&1; echo RC=$?';
           i++;
-          exec(cmd, timeoutMs || 15000).then(function (r) {
+          exec(cmd, 4000).then(function (r) {
             var out = String(r.stdout).trim();
             var rc = (out.match(/RC=(\d+)/) || [])[1];
             var body = out.replace(/RC=\d+/, '').trim();
