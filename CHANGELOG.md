@@ -1,3 +1,8 @@
+## v2.6.8.0
+
+- **Update check now shows what went wrong** — if `curl` returns empty or non-JSON output, the prompt shows the actual response instead of a generic "Failed to parse update info". Removed `2>/dev/null` so errors aren't hidden.
+- **Note:** `raw.githubusercontent.com` CDN may take a few minutes to reflect newly pushed versions. If you just updated, the update.json URL may still show the old version until the CDN cache clears.
+
 ## v2.6.7.0
 
 - **Redesigned main screen around a single button** — removed the switch from the home page entirely. One primary button shows "Log in" when not logged in, "Connect" when stopped, "Disconnect" when running. Tapping the status card does the same thing.

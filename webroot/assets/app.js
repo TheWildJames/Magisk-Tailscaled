@@ -289,11 +289,16 @@ function checkForUpdates() {
   $('update-check-btn').disabled = true;
   /* yield so the button text paints before ksu.exec blocks */
   setTimeout(function () {
-    exec(ENV + 'curl -sL ' + UPDATE_JSON + ' 2>/dev/null', 15000).then(function (r) {
+    exec(ENV + 'curl -sSL ' + UPDATE_JSON, 15000).then(function (r) {
       $('update-check-btn').textContent = 'Check';
       $('update-check-btn').disabled = false;
-      try { updateInfo = JSON.parse(r.stdout); } catch (e) {
-        showPrompt('Failed to parse update info', false);
+      var out = String(r.stdout).trim();
+      if (!out) {
+        showPrompt('Update check: empty response — curl may not be available', false);
+        return;
+      }
+      try { updateInfo = JSON.parse(out); } catch (e) {
+        showPrompt('Failed to parse update info: ' + out.slice(0, 80), false);
         return;
       }
       if (!updateInfo || !updateInfo.versionCode) {
