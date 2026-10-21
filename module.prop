@@ -1,7 +1,7 @@
 id=magisk-tailscaled
 name=Tailscale
-version=v2.8.1.0
-versionCode=02080100
+version=v2.8.2.0
+versionCode=02080200
 author=anasfanani, TheWildJames
-description=Full Tailscale VPN client for rooted Android. WireGuard mesh networking via KernelSU, Magisk or APatch.
+description=⚡ Tailscale
 updateJson=https://raw.githubusercontent.com/TheWildJames/Magisk-Tailscaled/main/update.json

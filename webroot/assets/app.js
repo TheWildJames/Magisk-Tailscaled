@@ -202,6 +202,56 @@ function render() {
 
   /* hostname */
   if (on && !S.hostnameSet) setHostname();
+
+  /* live status in module.prop description — status only, no marketing text */
+  maybeUpdateDesc();
+}
+
+/* ===== module.prop status writer =====
+   Mirrors the VPN state into the manager's module list so you can see
+   ⚡/⚠/⛔ at a glance without opening the WebUI. Writes only on change. */
+var lastDescKey = null;
+var DESC_MSG = {
+  stopped: '\u26a1 VPN stopped',
+  connected: '\u26a1 VPN connected',
+  login: '\u26a0 Login required',
+  starting: '\u23f3 Starting',
+  disconnected: '\u26a1 VPN disconnected',
+  machineauth: '\u23f3 Machine auth'
+};
+function maybeUpdateDesc() {
+  if (isMock) return;
+  var st = S.status, key;
+  if (!S.daemonUp) key = 'stopped';
+  else if (st && st.BackendState === 'Running') key = 'connected';
+  else if (st && (st.BackendState === 'NeedsLogin' || st.BackendState === 'NoState')) key = 'login';
+  else if (st && st.BackendState === 'Starting') key = 'starting';
+  else if (st && st.BackendState === 'Stopped') key = 'disconnected';
+  else if (st && st.BackendState === 'NeedsMachineAuth') key = 'machineauth';
+  else return;
+  if (key === lastDescKey) return;
+  lastDescKey = key;
+  exec(ENV + 'sed -i "s/^description=.*/description=' + DESC_MSG[key] + '/" ' + MODPROP + ' 2>/dev/null; echo OK', 8000);
+}
+
+/* ===== doctor ===== */
+function runDoctor() {
+  setHidden('log-overlay', false);
+  setText('log-content', 'Running diagnostics…\n');
+  if (logTimer) { clearInterval(logTimer); logTimer = null; }
+  var cmd = ENV +
+    'echo "=== tailscale status ==="; ' +
+    'tailscale status 2>&1; ' +
+    'echo; echo "=== tailscale netcheck ==="; ' +
+    'timeout 15 tailscale netcheck 2>&1; ' +
+    'echo; echo "=== tailscale version ==="; ' +
+    'tailscale version 2>&1; ' +
+    'echo; echo "=== daemon check ==="; ' +
+    'timeout 5 tailscale status --json 2>/dev/null | head -c 200; echo; ' +
+    'echo; echo "=== done ==="';
+  exec(cmd, 30000).then(function (r) {
+    setText('log-content', r.stdout || 'Doctor failed — no output');
+  });
 }
 
 /* ===== actions ===== */
@@ -426,6 +476,7 @@ function wire() {
   $('logout-confirm-btn').addEventListener('click', confirmLogout);
 
   $('row-logs').addEventListener('click', openLogs);
+  $('row-doctor').addEventListener('click', runDoctor);
   $('log-close-btn').addEventListener('click', closeLogs);
   $('log-copy-btn').addEventListener('click', copyLogs);
   $('log-share-btn').addEventListener('click', shareLogs);

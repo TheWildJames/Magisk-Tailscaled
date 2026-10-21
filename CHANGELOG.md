@@ -1,3 +1,8 @@
+## v2.8.2.0
+
+- **Module description = status only** — no more marketing text. The manager's module list shows just the live VPN status: ⚡ VPN connected / ⚠ Login required / ⛔ VPN stopped. Updates in real time via the WebUI poll.
+- **Doctor button** — Settings → About → Doctor. Runs `tailscale status`, `tailscale netcheck`, `tailscale version`, and a daemon liveness check, all in one output. Shows results in the log viewer with copy/share.
+
 ## v2.8.1.0
 
 - **Module renamed to "Tailscale"** — display name no longer says "Magisk Tailscaled"; tagline removed. Description: "Full Tailscale VPN client for rooted Android."
