@@ -1,3 +1,9 @@
+## v2.7.2.0
+
+- **User-friendly network errors** — instead of raw "fetch error: TypeError: Failed to fetch", the WebUI now says "WebUI can't reach the network — open GitHub releases in your browser?" with an "Open" button.
+- **Download fallback to browser** — if curl/wget both fail during download, offers to open the zip URL in your browser.
+- Browser fallback is now the primary path when the WebView blocks network access.
+
 ## v2.7.1.0
 
 - **TLS certificate error handling** — if `fetch()` or shell curl/wget fails with a TLS/cert error ("tlsnscert"), the prompt now shows the actual error instead of a generic message.

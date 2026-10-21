@@ -286,22 +286,19 @@ function toggleBoot() {
 /* ===== manual update check & download ===== */
 /* Fetch update.json via the browser's native fetch() (WebView has network
    access without needing curl/wget installed), falling back to shell
-   curl/wget if fetch is blocked. Same pattern bindhosts uses. Adds -k /
-   --no-check-certificate shell fallbacks for devices whose CA store
-   doesn't trust GitHub's TLS cert (common on rooted/custom Android). */
+   curl/wget if fetch is blocked. Same pattern bindhosts uses. */
 function fetchUrl(url, timeoutMs) {
   return new Promise(function (resolve) {
     var settled = false;
     var timer = setTimeout(function () {
-      if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'fetch timeout' }); }
+      if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'no network' }); }
     }, timeoutMs || 15000);
-    var fetchErr = null;
+    var shellSucceeded = false;
     fetch(url)
       .then(function (resp) { return resp.text(); })
-      .then(function (text) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: 0, stdout: text, stderr: '' }); } })
-      .catch(function (err) {
-        fetchErr = String(err).slice(0, 120);
-        /* fetch blocked by WebView — fall back to shell curl/wget */
+      .then(function (text) { if (!settled && !shellSucceeded) { settled = true; clearTimeout(timer); shellSucceeded = true; resolve({ errno: 0, stdout: text, stderr: '' }); } })
+      .catch(function () {
+        /* fetch blocked by WebView — try shell curl/wget */
         var cmds = [
           'curl -sSL -k ' + url,
           'curl -sSL ' + url,
@@ -315,10 +312,9 @@ function fetchUrl(url, timeoutMs) {
         var i = 0;
         function tryNext() {
           if (i >= cmds.length) {
-            if (!settled) {
+            if (!settled && !shellSucceeded) {
               settled = true; clearTimeout(timer);
-              var msg = fetchErr ? ('fetch error: ' + fetchErr) : 'no fetch tool found';
-              resolve({ errno: -1, stdout: '', stderr: msg });
+              resolve({ errno: -1, stdout: '', stderr: 'no network' });
             }
             return;
           }
@@ -328,7 +324,7 @@ function fetchUrl(url, timeoutMs) {
             var out = String(r.stdout).trim();
             var rc = (out.match(/RC=(\d+)/) || [])[1];
             var body = out.replace(/RC=\d+/, '').trim();
-            if (rc === '0' && body) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: 0, stdout: body, stderr: '' }); } }
+            if (rc === '0' && body) { if (!settled && !shellSucceeded) { settled = true; clearTimeout(timer); shellSucceeded = true; resolve({ errno: 0, stdout: body, stderr: '' }); } }
             else tryNext();
           }).catch(function () { tryNext(); });
         }
@@ -346,7 +342,7 @@ function checkForUpdates() {
       $('update-check-btn').disabled = false;
       var out = String(r.stdout).trim();
       if (!out) {
-        showPrompt(r.stderr || 'No network fetch available — open releases in browser?', false, 0, 'Open', function () {
+        showPrompt('WebUI can’t reach the network — open GitHub releases in your browser?', false, 0, 'Open', function () {
           exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1; echo OPEN');
           showPrompt('Opening GitHub releases…');
         });
@@ -399,7 +395,10 @@ function downloadUpdate() {
             showPrompt('Downloaded to ' + dest, true);
             setHidden('update-panel', true);
           } else {
-            showPrompt('Download failed — TLS/cert or no fetch tool available', false);
+            showPrompt('Download failed — open releases in browser?', false, 0, 'Open', function () {
+              exec(ENV + 'am start -a android.intent.action.VIEW -d ' + updateInfo.zipUrl + ' >/dev/null 2>&1; echo OPEN');
+              showPrompt('Opening download in browser…');
+            });
             setHidden('update-download-btn', false);
             setHidden('update-dismiss-btn', false);
           }
