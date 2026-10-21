@@ -1,3 +1,15 @@
+## v2.7.0.0
+
+- **Update check uses the WebView's built-in `fetch()`** — same pattern bindhosts uses. No longer needs curl/wget installed on the device to check for updates.
+- **Falls back to shell curl/wget** if `fetch()` is blocked by the WebView.
+- **If nothing works**, offers to open the GitHub releases page in your browser so you can download the zip manually.
+- **Download also falls back** — curl first, then wget.
+
+## v2.6.9.0
+
+- **Update check works without curl** — tries curl, then wget, then busybox wget, then toybox wget. If none are available, offers to open the GitHub releases page in your browser so you can download the zip manually.
+- **Download also falls back** — curl first, then wget, with a clear error if both are missing.
+
 ## v2.6.8.0
 
 - **Update check now shows what went wrong** — if `curl` returns empty or non-JSON output, the prompt shows the actual response instead of a generic "Failed to parse update info". Removed `2>/dev/null` so errors aren't hidden.

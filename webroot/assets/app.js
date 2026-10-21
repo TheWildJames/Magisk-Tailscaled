@@ -284,17 +284,57 @@ function toggleBoot() {
 
 
 /* ===== manual update check & download ===== */
+/* Fetch update.json via the browser's native fetch() (WebView has network
+   access without needing curl/wget installed), falling back to shell
+   curl/wget if fetch is blocked. Same pattern bindhosts uses. */
+function fetchUrl(url, timeoutMs) {
+  return new Promise(function (resolve) {
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (!settled) { settled = true; resolve({ errno: -1, stdout: '', stderr: 'fetch timeout' }); }
+    }, timeoutMs || 15000);
+    fetch(url)
+      .then(function (resp) { return resp.text(); })
+      .then(function (text) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: 0, stdout: text, stderr: '' }); } })
+      .catch(function (err) {
+        /* fetch blocked by WebView — fall back to shell curl/wget */
+        var cmds = [
+          'curl -sSL ' + url,
+          'wget -qO- ' + url,
+          'busybox wget -qO- ' + url,
+          'toybox wget -qO- ' + url
+        ];
+        var i = 0;
+        function tryNext() {
+          if (i >= cmds.length) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: -1, stdout: '', stderr: 'no fetch tool found' }); } return; }
+          var cmd = ENV + cmds[i] + ' 2>&1; echo RC=$?';
+          i++;
+          exec(cmd, timeoutMs || 15000).then(function (r) {
+            var out = String(r.stdout).trim();
+            var rc = (out.match(/RC=(\d+)/) || [])[1];
+            var body = out.replace(/RC=\d+/, '').trim();
+            if (rc === '0' && body) { if (!settled) { settled = true; clearTimeout(timer); resolve({ errno: 0, stdout: body, stderr: '' }); } }
+            else tryNext();
+          }).catch(function () { tryNext(); });
+        }
+        tryNext();
+      });
+  });
+}
+
 function checkForUpdates() {
   $('update-check-btn').textContent = 'Checking…';
   $('update-check-btn').disabled = true;
-  /* yield so the button text paints before ksu.exec blocks */
   setTimeout(function () {
-    exec(ENV + 'curl -sSL ' + UPDATE_JSON, 15000).then(function (r) {
+    fetchUrl(UPDATE_JSON, 15000).then(function (r) {
       $('update-check-btn').textContent = 'Check';
       $('update-check-btn').disabled = false;
       var out = String(r.stdout).trim();
       if (!out) {
-        showPrompt('Update check: empty response — curl may not be available', false);
+        showPrompt('No network fetch available — open releases in browser?', false, 0, 'Open', function () {
+          exec(ENV + 'am start -a android.intent.action.VIEW -d ' + GITHUB + '/releases >/dev/null 2>&1; echo OPEN');
+          showPrompt('Opening GitHub releases…');
+        });
         return;
       }
       try { updateInfo = JSON.parse(out); } catch (e) {
@@ -326,17 +366,29 @@ function downloadUpdate() {
   setHidden('update-dismiss-btn', true);
   setHidden('update-progress', false);
   var dest = '/sdcard/Download/Magisk-Tailscaled-' + updateInfo.version + '.zip';
+  /* try curl first, fall back to wget */
+  var fetchCmd = 'curl -sSL -o ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
+  var fetchFallback = 'wget -q -O ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?';
   setTimeout(function () {
-    exec(ENV + 'curl -L -o ' + dest + ' ' + updateInfo.zipUrl + ' 2>&1; echo RC=$?', 120000).then(function (r) {
-      setHidden('update-progress', true);
+    exec(ENV + fetchCmd, 120000).then(function (r) {
       var rc = (String(r.stdout).match(/RC=(\d+)/) || [])[1];
       if (rc === '0') {
+        setHidden('update-progress', true);
         showPrompt('Downloaded to ' + dest, true);
         setHidden('update-panel', true);
       } else {
-        showPrompt('Download failed — check logs', false);
-        setHidden('update-download-btn', false);
-        setHidden('update-dismiss-btn', false);
+        exec(ENV + fetchFallback, 120000).then(function (r2) {
+          setHidden('update-progress', true);
+          var rc2 = (String(r2.stdout).match(/RC=(\d+)/) || [])[1];
+          if (rc2 === '0') {
+            showPrompt('Downloaded to ' + dest, true);
+            setHidden('update-panel', true);
+          } else {
+            showPrompt('Download failed — curl and wget both unavailable', false);
+            setHidden('update-download-btn', false);
+            setHidden('update-dismiss-btn', false);
+          }
+        });
       }
     });
   }, 0);
