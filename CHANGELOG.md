@@ -1,3 +1,10 @@
+## v2.6.7.0
+
+- **Redesigned main screen around a single button** — removed the switch from the home page entirely. One primary button shows "Log in" when not logged in, "Connect" when stopped, "Disconnect" when running. Tapping the status card does the same thing.
+- **No more dual loading circles** — one small spinner spins next to the main button during any action. No full-screen overlay, no second spinner.
+- **Login button shows right away** — when not logged in, the main button says "Log in" and the login URL appears directly below it with Open/Copy buttons. No separate login box.
+- **Status badge** — "Connected" / "Log in required" / "Not connected" chip next to the title.
+
 ## v2.6.6.0
 
 - **Manual update button** — "Check for update" in the More page fetches update.json from GitHub and compares against your installed versionCode. If a newer release exists, it shows the version + changelog and a "Download" button that pulls the zip to /sdcard/Download/ via curl. The panel auto-checks on boot and stays silent when you're already current.

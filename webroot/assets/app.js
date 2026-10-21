@@ -353,7 +353,7 @@ function statusLine() {
   if (!daemonUp) return { text: 'Service stopped — tap to start', hint: 'tailscaled is not running' };
   var backend = latest ? latest.BackendState : null;
   if (backend === 'Running') return { text: 'Connected — tap to disconnect', hint: bootOn ? 'Reconnects automatically on boot' : 'tailscaled won\u2019t start at boot until this is turned back on' };
-  if (backend === 'NeedsLogin' || backend === 'NoState') return { text: 'Login required — tap Log in below', hint: 'tailscaled is running' };
+  if (backend === 'NeedsLogin' || backend === 'NoState') return { text: 'Log in to your tailnet', hint: 'tailscaled is running' };
   if (backend === 'Starting') return { text: 'Starting…', hint: 'Connecting to your tailnet' };
   if (backend === 'NeedsMachineAuth') return { text: 'Waiting for machine authorization…', hint: 'Approve this device in the Tailscale admin console' };
   if (backend === 'Stopped') return { text: 'Disconnected — tap to connect', hint: 'tailscaled is running' };
@@ -370,30 +370,36 @@ function render() {
   if (needsLogin && st && st.AuthURL) loginUrl = String(st.AuthURL);
   if (!needsLogin) loginUrl = '';
 
-  setSwitch('main-switch', on);
 
-  /* In-flight action feedback: inline spinner next to the switch + disable
+  /* In-flight action feedback: spinner next to the main button + disable
      competing controls so double-taps can't stack root execs. */
-  setHidden('switch-busy', !busy);
-  setHidden('inline-busy', !busy);
-  setText('inline-busy-text', statusLine().text);
-  $('main-switch').classList.toggle('busy', busy);
-  $('switch-label').textContent = (on ? 'Tailscale' : 'Tailscale');
-  $('switch-sub').textContent = busy ? statusLine().text : (on ? 'Connected — tap to disconnect' : 'Stopped — tap to connect');
-  $('login-btn').disabled = busy;
+  setHidden('btn-busy', !busy);
+  /* Main button text depends on state */
+  var btn = $('main-btn');
+  if (needsLogin) {
+    btn.textContent = 'Log in';
+    btn.disabled = busy;
+  } else if (on) {
+    btn.textContent = 'Disconnect';
+    btn.disabled = busy;
+  } else {
+    btn.textContent = 'Connect';
+    btn.disabled = busy || !daemonUp;
+  }
   $('open-url-btn').disabled = busy || !loginUrl;
   $('copy-url-btn').disabled = busy || !loginUrl;
-  $('restart-row').classList.toggle('disabled', busy);
-  $('logout-row').classList.toggle('disabled', busy || !daemonUp || needsLogin);
-  $('exitnode-row').classList.toggle('disabled', busy || !on);
 
   var sl = statusLine();
   setText('status-text', sl.text);
   setText('status-hint', sl.hint);
+  /* Status badge color */
+  var badge = $('status-badge');
+  if (needsLogin) { badge.textContent = 'Log in required'; badge.className = 'status-badge offline'; }
+  else if (on) { badge.textContent = 'Connected'; badge.className = 'status-badge online'; }
+  else { badge.textContent = 'Not connected'; badge.className = 'status-badge offline'; }
 
-  /* login box */
-  setHidden('login-box', !needsLogin);
-  setHidden('login-url-row', !loginUrl);
+  /* Login URL row (shown when logged out) */
+  setHidden('login-url-box', !loginUrl);
   if (loginUrl) {
     var html = '<a href="' + esc(loginUrl) + '" target="_blank" rel="noopener">' + esc(loginUrl) + '</a>';
     if (html !== urlHtml) { urlHtml = html; $('login-url').innerHTML = html; }
@@ -489,6 +495,15 @@ function renderVersion() {
 }
 
 /* ===== actions ===== */
+/* ===== main button action ===== */
+function doMainAction() {
+  if (anyBusy()) return;
+  var backend = latest ? latest.BackendState : null;
+  var needsLogin = daemonUp && (backend === 'NeedsLogin' || backend === 'NoState');
+  if (needsLogin) { startLogin(); return; }
+  toggleVPN();
+}
+
 function toggleVPN() {
   if (toggling) return;
   var on = latest && latest.BackendState === 'Running';
@@ -516,9 +531,9 @@ function startLogin() {
     return;
   }
   loginPending = true;
-  /* show progress + "Generating…" text right away so the UI never looks frozen */
-  $('login-progress').removeAttribute('hidden');
-  $('login-url-row').removeAttribute('hidden');
+  /* show spinner on main button right away so the UI never looks frozen */
+  $('btn-busy').removeAttribute('hidden');
+  $('login-url-box').removeAttribute('hidden');
   setText('login-url', 'Generating login URL…');
   render();
   /* yield to the browser so the overlay paints before ksu.exec blocks */
@@ -526,7 +541,7 @@ function startLogin() {
     exec(ENV + "timeout 15 tailscale login 2>&1 | grep -oE 'https://[^ ]+' | head -1", 25000)
       .then(function (r) {
       loginPending = false;
-      $('login-progress').setAttribute('hidden', '');
+      $('btn-busy').setAttribute('hidden', '');
       loginUrl = r.stdout.trim();
       if (loginUrl) {
         showLoginUrlReady();
@@ -538,7 +553,7 @@ function startLogin() {
   }, 0);
 }
 function showLoginUrlReady() {
-  $('login-url-row').removeAttribute('hidden');
+  $('login-url-box').removeAttribute('hidden');
   setText('login-url', loginUrl);
   urlHtml = '';
   render();
@@ -724,9 +739,8 @@ function wireEvents() {
     b.addEventListener('click', function () { navTo(b.getAttribute('page')); });
   });
 
-  $('status-box').addEventListener('click', toggleVPN);
-  $('main-switch').addEventListener('click', function (e) { e.stopPropagation(); toggleVPN(); });
-  $('login-btn').addEventListener('click', startLogin);
+  $('status-box').addEventListener('click', doMainAction);
+  $('main-btn').addEventListener('click', doMainAction);
   $('open-url-btn').addEventListener('click', openLoginUrl);
   $('copy-url-btn').addEventListener('click', copyLoginUrl);
   $('retry-btn').addEventListener('click', probeBridge);

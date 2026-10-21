@@ -408,12 +408,7 @@
         width: 100%;
         --md-linear-progress-active-indicator-height: 4px;
     }
-    #login-progress {
-        width: 100%;
-        margin: 8px 0 0 0;
-        --md-linear-progress-active-indicator-height: 3px;
-    }
-    /* ===== Status card: switch is the primary action ===== */
+    /* ===== Status card: single primary action button ===== */
     .status-card {
         position: relative;
         flex-shrink: 0;
@@ -426,33 +421,49 @@
         margin-bottom: 16px;
         overflow: hidden;
     }
-    .switch-row {
+    .status-header-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        margin-bottom: 10px;
     }
-    .switch-label-wrap {
+    .status-badge {
+        font-size: 0.85em;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 10px;
+        background-color: var(--md-sys-color-surface-variant);
+        color: var(--md-sys-color-on-surface-variant);
+        white-space: nowrap;
+    }
+    .status-badge.online {
+        background-color: var(--md-sys-color-primary-container);
+        color: var(--md-sys-color-on-primary-container);
+    }
+    .status-badge.offline {
+        background-color: var(--md-sys-color-error-container);
+        color: var(--md-sys-color-on-error-container);
+    }
+    .btn-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+    }
+    .btn-row md-filled-button {
         flex: 1;
         min-width: 0;
     }
-    .switch-label {
-        font-size: 1.5em;
-        font-weight: 600;
-        color: var(--md-sys-color-on-surface);
-        user-select: none;
-        line-height: 1.2;
-    }
-    .switch-sub {
-        font-size: 0.9em;
-        color: var(--md-sys-color-on-surface-variant);
-        user-select: none;
-        line-height: 1.2;
-    }
-    .switch-busy {
+    .btn-busy {
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+    .btn-busy .spinner-sm {
+        width: 18px;
+        height: 18px;
+        border-width: 2px;
     }
     .spinner-sm {
         width: 20px;
@@ -462,30 +473,29 @@
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }
-    .inline-busy {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 6px;
-        font-size: 0.95em;
-        font-weight: 500;
-        color: var(--md-sys-color-primary);
-    }
-    .inline-busy .spinner-sm {
-        width: 16px;
-        height: 16px;
-        border-width: 2px;
-    }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Switch pressed/busy state */
-    #main-switch.busy {
-        opacity: 0.6;
+    /* Login URL row */
+    #login-url-box h2 {
+        margin: 0 0 10px 0;
+        font-size: 1em;
+        font-weight: 600;
+        color: var(--md-sys-color-primary);
     }
-
-    /* Remove full-screen overlay styles */
-    #busy-overlay { display: none; }
-    .busy-spinner-big { display: none; }
+    .login-url {
+        font-family: monospace;
+        font-size: 0.85em;
+        background-color: var(--md-sys-color-surface-variant);
+        padding: 10px 12px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        word-break: break-all;
+        color: var(--md-sys-color-on-surface);
+    }
+    .login-url-btns {
+        display: flex;
+        gap: 8px;
+    }
 
     .status-hint {
         margin: 2px 0 0 0;
@@ -513,11 +523,6 @@
 
     .health-item + .health-item {
         border-top: 1px solid color-mix(in srgb, var(--md-sys-color-on-error-container) 20%, transparent);
-    }
-
-    /* Switch busy state overrides pointer events during actions */
-    #main-switch.busy {
-        pointer-events: none;
     }
 
     .list-item.disabled {
@@ -610,11 +615,6 @@ md-switch.soft-disabled {
     text-align: center;
 }
 
-#main-switch {
-    --md-switch-selected-icon-color: var(--md-sys-color-on-secondary-container);
-    --md-switch-selected-track-color: var(--md-sys-color-secondary);
-}
-
 .kv-row {
     display: flex;
     justify-content: space-between;
@@ -633,20 +633,7 @@ md-switch.soft-disabled {
     word-break: break-all;
 }
 
-#login-box .bigmsg {
-    color: var(--md-sys-color-outline);
-    margin: 0 0 16px;
-    font-size: 0.95em;
-}
-
-#login-btn {
-    width: 100%;
-    max-width: 300px;
-    margin: 0 auto;
-    display: flex;
-}
-
-.login-url-row {
+#login-url-box {
     margin-top: 18px;
 }
 

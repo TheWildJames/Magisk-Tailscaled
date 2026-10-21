@@ -39,23 +39,19 @@
         <!-- ============ HOME PAGE ============ -->
         <div class="page-view" data-active="true" id="page-home">
             <div class="body-content constant-height">
-                <!-- Status box (switch = toggle VPN) -->
+                <!-- Status card: single primary action button -->
                 <div class="box status-card" id="status-box">
                     <md-ripple></md-ripple>
-                    <div class="switch-row">
-                        <md-switch id="main-switch" icons></md-switch>
-                        <div class="switch-label-wrap">
-                            <div class="switch-label" id="switch-label">Tailscale</div>
-                            <div class="switch-sub" id="switch-sub">Tap to connect</div>
-                        </div>
-                        <div class="switch-busy" id="switch-busy" hidden>
-                            <div class="spinner-sm"></div>
-                        </div>
+                    <div class="status-header-row">
+                        <h2 id="status-header">Tailscale</h2>
+                        <span class="status-badge" id="status-badge">—</span>
                     </div>
                     <p id="status-text">Initializing…</p>
-                    <div class="inline-busy" id="inline-busy" hidden>
-                        <div class="spinner-sm"></div>
-                        <span id="inline-busy-text">Working…</span>
+                    <div class="btn-row">
+                        <md-filled-button id="main-btn">Connect</md-filled-button>
+                        <div class="btn-busy" id="btn-busy" hidden>
+                            <div class="spinner-sm"></div>
+                        </div>
                     </div>
                     <p id="status-hint" class="status-hint"></p>
                 </div>
@@ -76,17 +72,13 @@
                     </div>
                 </div>
 
-                <!-- Login box (NeedsLogin only) -->
-                <div class="box" id="login-box" hidden>
-                    <p class="bigmsg">Log in to your Tailscale network</p>
-                    <md-filled-button id="login-btn">Log in</md-filled-button>
-                    <md-linear-progress id="login-progress" indeterminate hidden></md-linear-progress>
-                    <div class="login-url-row" id="login-url-row" hidden>
-                        <div class="login-url" id="login-url">Generating login URL…</div>
-                        <div class="login-url-btns">
-                            <md-text-button id="open-url-btn">Open in browser</md-text-button>
-                            <md-text-button id="copy-url-btn">Copy</md-text-button>
-                        </div>
+                <!-- Login URL row (shown when logged out) -->
+                <div class="box" id="login-url-box" hidden>
+                    <h2>Log in</h2>
+                    <div id="login-url" class="login-url">Generating login URL…</div>
+                    <div class="login-url-btns">
+                        <md-text-button id="open-url-btn">Open in browser</md-text-button>
+                        <md-text-button id="copy-url-btn">Copy</md-text-button>
                     </div>
                 </div>
 
@@ -223,7 +215,7 @@
                             <md-icon class="leading-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M240-80q-29 0-49.5-20.5T160-200v-560q0-29 20.5-49.5T240-320v-80q0-42 29.5-71.5T400-800q42 0 71.5 29.5T560-640q0-42 29.5-71.5T720-880q42 0 71.5 29.5T880-720q0-42 20.5-71.5T920-880v80q0-42-20.5-71.5T800-640q-42 0-71.5 29.5T640-320v80q0-29-20.5-49.5T560-440q-29 0-49.5 20.5T440-280v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v560q0 50 35 85t85 35q50 0 85-35t35-85v-80q0-42-20.5-71.5T640-640q-42 0-71.5 29.5T480-480q-42 0-71.5-29.5T320-880v80q0-42-20.5-71.5T200-880q-42 0-71.5 29.5T80-720q0-42 20.5-71.5T120-640q0-42 20.5-71.5T160-400q0-29-20.5-49.5T80-160v80q0-42-20.5-71.5T40-320v560q0 42 20.5 71.5T80-80q42 0 71.5 29.5T160-80Zm400-120q-29 0-49.5-20.5T560-280v-80q0-29-20.5-49.5T440-480v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v560q0 50 35 85t85 35q50 0 85-35t35-85v-80q0-42-20.5-71.5T640-640q-42 0-71.5 29.5T480-480q-42 0-71.5-29.5T320-880v80q0-42-20.5-71.5T200-880q-42 0-71.5 29.5T80-720q0-42 20.5-71.5T120-640q0-42 20.5-71.5T160-400q0-29-20.5-49.5T80-160v80q0-42-20.5-71.5T40-320v560q0 42 20.5 71.5T80-80q42 0 71.5 29.5T160-80Z"/></svg>
                             </md-icon>
-                            <span class="list-item-content">Check for update<small id="update-current">v2.6.6.0</small></span>
+                            <span class="list-item-content">Check for update<small id="update-current">v2.6.7.0</small></span>
                             <md-text-button id="update-check-btn">Check</md-text-button>
                         </div>
                         <!-- Update available panel -->
