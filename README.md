@@ -1,7 +1,7 @@
-[![TheWildJames - Wild-Tailscale](https://img.shields.io/static/v1?label=TheWildJames&message=Wild-Tailscale&color=blue&logo=github)](https://github.com/TheWildJames/Wild-Tailscale "Go to GitHub repo")
-[![Github All Releases](https://img.shields.io/github/downloads/TheWildJames/Wild-Tailscale/total.svg)]()
-[![GitHub release](https://img.shields.io/github/release/TheWildJames/Wild-Tailscale?include_prereleases=&sort=semver&color=blue)](https://github.com/TheWildJames/Wild-Tailscale/releases/)
-[![issues - Wild-Tailscale](https://img.shields.io/github/issues/TheWildJames/Wild-Tailscale)](https://github.com/TheWildJames/Wild-Tailscale/issues)
+[![TheWildJames - Wild_Tailscale](https://img.shields.io/static/v1?label=TheWildJames&message=Wild_Tailscale&color=blue&logo=github)](https://github.com/TheWildJames/Wild_Tailscale "Go to GitHub repo")
+[![Github All Releases](https://img.shields.io/github/downloads/TheWildJames/Wild_Tailscale/total.svg)]()
+[![GitHub release](https://img.shields.io/github/release/TheWildJames/Wild_Tailscale?include_prereleases=&sort=semver&color=blue)](https://github.com/TheWildJames/Wild_Tailscale/releases/)
+[![issues - Wild_Tailscale](https://img.shields.io/github/issues/TheWildJames/Wild_Tailscale)](https://github.com/TheWildJames/Wild_Tailscale/issues)
 [![Static Badge](https://img.shields.io/badge/Discussion-Telegram-blue?style=flat&logo=telegram&link=t.me%2Fsystembinsh%2F158)](https://t.me/systembinsh/158)
 
 # Tailscale
@@ -25,7 +25,7 @@ The [Tailscale app](https://play.google.com/store/apps/details?id=com.tailscale.
 
 ## Quick Start & Installation
 
-1. Download the latest zip file from the [Releases](https://github.com/TheWildJames/Wild-Tailscale/releases/latest) page.
+1. Download the latest zip file from the [Releases](https://github.com/TheWildJames/Wild_Tailscale/releases/latest) page.
 2. Install the downloaded zip file using your root manager & reboot your phone.
 3. Open the **WebUI** in the manager to connect, log in, and manage settings — or use the CLI:
 

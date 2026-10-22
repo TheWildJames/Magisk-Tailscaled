@@ -86,7 +86,7 @@ for f in "$TS_BIN_DIR"/*-"$ARCH"; do
 done
 
 [ -f "$TS_BIN_DIR/tailscaled" ] || {
-	gh_download "TheWildJames/Wild-Tailscale" "tailscale_.*_${ARCH}\.tgz" || abort "error: Unable to download."
+	gh_download "TheWildJames/Wild_Tailscale" "tailscale_.*_${ARCH}\.tgz" || abort "error: Unable to download."
 	tar -xzf "$TMPDIR/$FILENAME" -C $TS_BIN_DIR || abort "error: Unable extract archive."
 }
 

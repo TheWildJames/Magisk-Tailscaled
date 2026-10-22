@@ -13,7 +13,7 @@ var ENV = 'export PATH=/data/adb/tailscale/bin:/data/adb/tailscale/scripts:/data
 var SERVICE = '/data/adb/tailscale/scripts/tailscaled.service';
 var MODPROP = '/data/adb/modules/magisk-tailscaled/module.prop';
 var LOGFILE = '/data/adb/tailscale/run/tailscaled.log';
-var GITHUB = 'https://github.com/TheWildJames/Wild-Tailscale';
+var GITHUB = 'https://github.com/TheWildJames/Wild_Tailscale';
 var UPDATE_JSON = GITHUB + '/raw/main/update.json';
 
 /* ===== mock bridge (?mock=1) ===== */
