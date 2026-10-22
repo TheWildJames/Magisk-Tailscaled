@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Tailscaled</title>
+    <title>Tailscale</title>
     <link rel="stylesheet" href="./index.css">
     <script type="module" crossorigin src="./assets/md.js"></script>
     <script type="module" crossorigin src="./assets/app.js"></script>
@@ -11,8 +11,7 @@
 <body>
 
 <header class="header">
-    <span class="header-title">Tailscaled</span>
-    <span class="header-version" id="version-text"></span>
+    <span class="header-title">Tailscale</span>
 </header>
 
 <main class="content">
@@ -47,6 +46,7 @@
             <div class="info-row"><span>IPv6</span><span class="mono" id="kv-ip6">—</span></div>
             <div class="info-row"><span>Exit node</span><span id="kv-exit">—</span></div>
             <div class="info-row"><span>Hostname</span><span id="kv-host">—</span></div>
+            <div class="info-row"><span>Version</span><span class="mono" id="kv-version">—</span></div>
         </div>
 
         <div class="card" id="devices-card" hidden>

@@ -16,7 +16,7 @@ get_latest_release() {
   curl -s "https://api.github.com/repos/$1/releases/latest" | grep '"browser_download_url"' | grep "$2" | sed 's/.*"browser_download_url": "\([^"]*\)".*/\1/'
 }
 
-echo "Building Magisk-Tailscaled ${VERSION} (tailscale ${TS_VERSION})"
+echo "Building Wild-Tailscale ${VERSION} (tailscale ${TS_VERSION})"
 echo "========================================"
 
 mkdir -p "$BIN_DIR" "$DIST_DIR"
@@ -44,14 +44,14 @@ done
 
 echo ""
 echo "Creating zip without binaries..."
-zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" "tailscale/bin/*" ".shellcheckrc" >/dev/null
+zip -9 -r "${DIST_DIR}/Wild-Tailscale-${VERSION}.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" "tailscale/bin/*" ".shellcheckrc" >/dev/null
 # *.json is excluded above (update.json etc.) but the WebUI config is REQUIRED
 # by MMRL (WebUI X: backInterceptor, CSP) — add it back explicitly.
-zip -9 "${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip" webroot/config.json >/dev/null
+zip -9 "${DIST_DIR}/Wild-Tailscale-${VERSION}.zip" webroot/config.json >/dev/null
 
 echo "Creating zip with binaries..."
-zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" ".shellcheckrc" >/dev/null
-zip -9 "${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip" webroot/config.json >/dev/null
+zip -9 -r "${DIST_DIR}/Wild-Tailscale-${VERSION}-full.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" ".shellcheckrc" >/dev/null
+zip -9 "${DIST_DIR}/Wild-Tailscale-${VERSION}-full.zip" webroot/config.json >/dev/null
 
 rm -f "$BIN_DIR"/*
 
@@ -60,5 +60,5 @@ echo "Build completed successfully!"
 echo "========================================"
 ls -lh "${DIST_DIR}/"
 echo "========================================"
-echo "Created: ${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip (no binaries - downloads on install)"
-echo "Created: ${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip (includes all binaries)"
+echo "Created: ${DIST_DIR}/Wild-Tailscale-${VERSION}.zip (no binaries - downloads on install)"
+echo "Created: ${DIST_DIR}/Wild-Tailscale-${VERSION}-full.zip (includes all binaries)"

@@ -1,3 +1,14 @@
+## v2.8.3.0
+
+- **Repo renamed to Wild-Tailscale** — all references updated (module.prop, update.json, app.js, README, build.sh, workflow, customize.sh). The GitHub repo rename is done separately in repo settings.
+- **Header cleaned** — title is "Tailscale", version display removed from top bar, moved to the device info card.
+- **Copy-IP buttons** — each device in the tailnet list gets a ⧉ button to copy its Tailscale IP.
+- **Status card not clickable** — only the Connect/Disconnect/Log in button below is tappable.
+- **Clock emoji status** — module.prop description uses `[ ⏲ HH:MM | ⚡ VPN connected ]` format.
+- **Author cleaned** — module.prop author is just TheWildJames.
+- **README updated** — matches current features (WebUI, doctor, status, rename, Wild-Tailscale).
+- **Code review** — checked for errors, leaks, XSS (esc() used in all innerHTML), null guards (20 && patterns), dead refs (none), unused CSS (cleaned .header-version).
+
 ## v2.8.2.0
 
 - **Module description = status only** — no more marketing text. The manager's module list shows just the live VPN status: ⚡ VPN connected / ⚠ Login required / ⛔ VPN stopped. Updates in real time via the WebUI poll.

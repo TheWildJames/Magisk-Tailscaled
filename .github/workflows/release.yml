@@ -87,12 +87,12 @@ jobs:
           append_body: true
           body: |
             ## Downloads
-            - **Magisk-Tailscaled-${{ steps.version.outputs.version }}.zip** - Lightweight (downloads binaries on install)
-            - **Magisk-Tailscaled-${{ steps.version.outputs.version }}-full.zip** - Complete package (includes all binaries)
+            - **Wild-Tailscale-${{ steps.version.outputs.version }}.zip** - Lightweight (downloads binaries on install)
+            - **Wild-Tailscale-${{ steps.version.outputs.version }}-full.zip** - Complete package (includes all binaries)
             
             ## Download Stats
-            ![GitHub Downloads](https://img.shields.io/github/downloads/TheWildJames/Magisk-Tailscaled/${{ steps.version.outputs.version }}/Magisk-Tailscaled-${{ steps.version.outputs.version }}.zip?style=flat&logo=docusign&logoColor=green&label=Lightweight)
-            ![GitHub Downloads](https://img.shields.io/github/downloads/TheWildJames/Magisk-Tailscaled/${{ steps.version.outputs.version }}/Magisk-Tailscaled-${{ steps.version.outputs.version }}-full.zip?style=flat&logo=docusign&logoColor=green&label=Full%20Package)
+            ![GitHub Downloads](https://img.shields.io/github/downloads/TheWildJames/Wild-Tailscale/${{ steps.version.outputs.version }}/Wild-Tailscale-${{ steps.version.outputs.version }}.zip?style=flat&logo=docusign&logoColor=green&label=Lightweight)
+            ![GitHub Downloads](https://img.shields.io/github/downloads/TheWildJames/Wild-Tailscale/${{ steps.version.outputs.version }}/Wild-Tailscale-${{ steps.version.outputs.version }}-full.zip?style=flat&logo=docusign&logoColor=green&label=Full%20Package)
 
       - name: Update JSON with release URLs
         env:

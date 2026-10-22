@@ -1,6 +1,6 @@
 {
-  "version": "v2.8.2.0",
-  "versionCode": "02080200",
-  "zipUrl": "https://github.com/TheWildJames/Magisk-Tailscaled/releases/download/v2.8.2.0/Magisk-Tailscaled-v2.8.2.0.zip",
-  "changelog": "https://raw.githubusercontent.com/TheWildJames/Magisk-Tailscaled/main/CHANGELOG.md"
+  "version": "v2.8.3.0",
+  "versionCode": "02080300",
+  "zipUrl": "https://github.com/TheWildJames/Wild-Tailscale/releases/download/v2.8.3.0/Wild-Tailscale-v2.8.3.0.zip",
+  "changelog": "https://raw.githubusercontent.com/TheWildJames/Wild-Tailscale/main/CHANGELOG.md"
 }

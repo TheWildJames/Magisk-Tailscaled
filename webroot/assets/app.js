@@ -13,7 +13,7 @@ var ENV = 'export PATH=/data/adb/tailscale/bin:/data/adb/tailscale/scripts:/data
 var SERVICE = '/data/adb/tailscale/scripts/tailscaled.service';
 var MODPROP = '/data/adb/modules/magisk-tailscaled/module.prop';
 var LOGFILE = '/data/adb/tailscale/run/tailscaled.log';
-var GITHUB = 'https://github.com/TheWildJames/Magisk-Tailscaled';
+var GITHUB = 'https://github.com/TheWildJames/Wild-Tailscale';
 var UPDATE_JSON = GITHUB + '/raw/main/update.json';
 
 /* ===== mock bridge (?mock=1) ===== */
@@ -45,7 +45,7 @@ if (isMock) {
 }
 
 /* ===== exec wrapper ===== */
-var cbN = 0;
+var cbN = 0, pollVersion = '';
 function exec(cmd, timeoutMs) {
   timeoutMs = timeoutMs || 20000;
   return new Promise(function (resolve) {
@@ -105,7 +105,7 @@ function poll() {
     var prefsStr = between('M4', 'M5');
     var bootStr = between('M5', 'M6');
 
-    if (ver) setText('version-text', ver);
+    if (ver) { pollVersion = ver; }
     try { S.status = statusStr ? JSON.parse(statusStr) : null; } catch (e) { S.status = null; }
     S.daemonUp = !!S.status;
     try { S.prefs = prefsStr ? JSON.parse(prefsStr) : null; } catch (e) { S.prefs = null; }
@@ -171,6 +171,7 @@ function render() {
     setText('kv-ip6', (s.TailscaleIPs && s.TailscaleIPs[1]) || '—');
     setText('kv-exit', st.ExitNodeStatus ? ((st.ExitNodeStatus.TailscaleIPs && st.ExitNodeStatus.TailscaleIPs[0]) || 'in use') : 'none');
     setText('kv-host', s.HostName || '—');
+    setText('kv-version', pollVersion || '—');
   }
 
   /* devices */
@@ -186,7 +187,8 @@ function render() {
         return '<div class="peer-row">' +
           '<div class="peer-dot' + (p.Online ? ' on' : '') + '"></div>' +
           '<div class="peer-name">' + esc(p.HostName || '?') + (p.ExitNode ? ' <small>exit</small>' : '') + '</div>' +
-          '<span class="peer-ip">' + esc(ip4(p)) + '</span></div>';
+          '<span class="peer-ip">' + esc(ip4(p)) + '</span>' +
+          '<button class="ip-copy" data-ip="' + esc(ip4(p)) + '" title="Copy IP">\u29c9</button></div>';
       }).join('');
     }
   } else { peersSig = ''; }
@@ -212,11 +214,11 @@ function render() {
    ⚡/⚠/⛔ at a glance without opening the WebUI. Writes only on change. */
 var lastDescKey = null;
 var DESC_MSG = {
-  stopped: '\u26a1 VPN stopped',
+  stopped: '\u26d4 Stopped',
   connected: '\u26a1 VPN connected',
   login: '\u26a0 Login required',
   starting: '\u23f3 Starting',
-  disconnected: '\u26a1 VPN disconnected',
+  disconnected: '\u26d4 VPN disconnected',
   machineauth: '\u23f3 Machine auth'
 };
 function maybeUpdateDesc() {
@@ -231,7 +233,9 @@ function maybeUpdateDesc() {
   else return;
   if (key === lastDescKey) return;
   lastDescKey = key;
-  exec(ENV + 'sed -i "s/^description=.*/description=' + DESC_MSG[key] + '/" ' + MODPROP + ' 2>/dev/null; echo OK', 8000);
+  var T = new Date().toTimeString().slice(0, 5);
+  var desc = '[ \u23f2 ' + T + ' | ' + DESC_MSG[key] + ' ]';
+  exec(ENV + 'sed -i "s/^description=.*/description=' + desc + '/" ' + MODPROP + ' 2>/dev/null; echo OK', 8000);
 }
 
 /* ===== doctor ===== */
@@ -446,7 +450,6 @@ function wire() {
   });
 
   $('action-btn').addEventListener('click', doAction);
-  $('status-card').addEventListener('click', doAction);
   $('open-url-btn').addEventListener('click', function () {
     exec(ENV + 'am start -a android.intent.action.VIEW -d "' + S.loginUrl + '" >/dev/null 2>&1');
     snack('Opening browser…');
@@ -456,6 +459,14 @@ function wire() {
     catch (e) { snack(S.loginUrl); }
   });
 
+  $('peers-list').addEventListener('click', function (e) {
+    var btn = e.target.closest('.ip-copy');
+    if (!btn) return;
+    var ip = btn.getAttribute('data-ip');
+    if (!ip) return;
+    try { navigator.clipboard.writeText(ip).then(function () { snack('Copied ' + ip); }); }
+    catch (err) { snack(ip); }
+  });
   $('row-boot').addEventListener('click', toggleBoot);
   var prefRows = { 'row-dns': '--accept-dns', 'row-routes': '--accept-routes', 'row-exit-adv': '--advertise-exit-node', 'row-lan': '--exit-node-allow-lan-access' };
   Object.keys(prefRows).forEach(function (rowId) {
