@@ -1,3 +1,7 @@
+## v2.8.4.0
+
+- **Settings persist across reboots** — `doConnect` now reads stored prefs and passes them as explicit flags to `tailscale up` instead of running bare `tailscale up` (which resets to defaults). Your Accept DNS / Accept routes / Advertise exit node / LAN access settings survive a reboot.
+
 ## v2.8.3.0
 
 - **Repo renamed to Wild_Tailscale** — all references updated (module.prop, update.json, app.js, README, build.sh, workflow, customize.sh). The GitHub repo rename is done separately in repo settings.

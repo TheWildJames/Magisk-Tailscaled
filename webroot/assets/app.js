@@ -271,8 +271,19 @@ function doAction() {
 
 function doConnect() {
   setBusy('Starting…');
+  /* Build tailscale up flags from stored prefs so settings persist
+     across reboots — bare `tailscale up` resets to defaults. */
+  var prefs = S.prefs || {};
+  var dns = prefs.CorpDNS !== false ? 'true' : 'false';
+  var routes = prefs.RouteAll === true ? 'true' : 'false';
+  var exitAdv = (String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) ? 'true' : 'false';
+  var lan = prefs.ExitNodeAllowLANAccess === true ? 'true' : 'false';
+  var upCmd = 'tailscale up --accept-dns=' + dns +
+    ' --accept-routes=' + routes +
+    ' --advertise-exit-node=' + exitAdv +
+    ' --exit-node-allow-lan-access=' + lan;
   setTimeout(function () {
-    exec(ENV + SERVICE + ' start >/dev/null 2>&1; R=$?; sleep 2; timeout 8 tailscale up >/dev/null 2>&1 || true; echo RC=$R', 45000)
+    exec(ENV + SERVICE + ' start >/dev/null 2>&1; R=$?; sleep 2; timeout 15 ' + upCmd + ' >/dev/null 2>&1 || true; echo RC=$R', 60000)
       .then(function (r) {
         clearBusy();
         snack(/RC=0/.test(r.stdout) ? 'Connected' : 'Start failed');
