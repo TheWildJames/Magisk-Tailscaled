@@ -1,5 +1,15 @@
 #!/system/bin/sh
-# this service later will moved to General Scripts for enabling and disabling tailscaled service when default state is disabled
+# Boot script. KernelSU runs this in late_start service AND runs
+# boot-completed.sh on boot completed — the daemon start lives there
+# (per the KernelSU module guide, boot-completed.sh is the right stage for
+# "run after boot finished"). Magisk has no boot-completed stage, so on
+# Magisk this script does the boot-completed wait itself.
+MODDIR="${0%/*}"
+if [ "$KSU" = "true" ]; then
+    # KernelSU: boot-completed.sh handles daemon start
+    exit 0
+fi
+# --- Magisk path ---
 # WebUI boot toggle: skip daemon start when the user disabled autostart
 if [ -e /data/adb/tailscale/NOBOOT ]; then
     exit 0

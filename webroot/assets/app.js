@@ -491,6 +491,24 @@ function wire() {
       setPref(flag, !current);
     });
   });
+  /* md-switch is natively interactive: tapping the switch itself toggles
+     only the local visual state and fires `change` (the row click above
+     deliberately ignores it). Without a change handler nothing was applied
+     and the next poll snapped the switch back to the old value. */
+  var swFlags = { 'sw-dns': '--accept-dns', 'sw-routes': '--accept-routes', 'sw-exit-adv': '--advertise-exit-node', 'sw-lan': '--exit-node-allow-lan-access' };
+  Object.keys(swFlags).forEach(function (swId) {
+    var el = $(swId);
+    if (!el) return;
+    el.addEventListener('change', function () {
+      if (S.busy) { render(); return; }
+      setPref(swFlags[swId], !!el.selected);
+    });
+  });
+  var bootSw = $('sw-boot');
+  if (bootSw) bootSw.addEventListener('change', function () {
+    if (S.busy) { render(); return; }
+    toggleBoot();
+  });
 
   $('row-restart').addEventListener('click', doRestart);
   $('row-logout').addEventListener('click', function () { setHidden('logout-overlay', false); });

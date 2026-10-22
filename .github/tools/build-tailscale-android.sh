@@ -1,14 +1,18 @@
 #!/bin/bash
 # Build tailscaled for Android (arm + arm64) from official tailscale source.
 #
+# IMPORTANT: built with GOOS=linux, NOT GOOS=android. GOOS=android builds
+# hard-exclude the Linux router — tailscaled fails to start with a real
+# TUN ("creating router: unsupported OS android") and can only run
+# userspace networking, which Android apps cannot route into. The
+# GOOS=linux build gives us the real kernel TUN (tailscale0) + netlink
+# router, so apps on the phone reach tailnet IPs directly.
+#
 # Usage: build-tailscale-android.sh [tailscale-version] [output-dir]
 #   tailscale-version  e.g. 1.104.1 (default: latest stable from pkgs.tailscale.com)
 #   output-dir         default: dist
 #
-# Environment:
-#   ANDROID_NDK_PATH  path to NDK toolchain bin dir
-#                     (…/toolchains/llvm/prebuilt/linux-x86_64/bin).
-#                     If unset, NDK r27c is downloaded to /tmp.
+# No NDK needed: CGO is disabled, producing fully static binaries.
 #
 # Outputs (in output-dir):
 #   tailscaled.arm(.arm64), tailscale.arm(.arm64)
@@ -28,23 +32,7 @@ if [ -z "$TS_VERSION" ]; then
     | sed 's/^tailscale_//; s/_arm64\.tgz$//')
   [ -n "$TS_VERSION" ] || { echo "error: could not detect latest tailscale version"; exit 1; }
 fi
-echo "Building tailscale v${TS_VERSION} for Android (arm, arm64)"
-
-# --- NDK ---
-if [ -z "${ANDROID_NDK_PATH:-}" ]; then
-  NDK_VERSION=r27c
-  NDK_DIR="/tmp/android-ndk-${NDK_VERSION}-linux"
-  ANDROID_NDK_PATH="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin"
-  if [ ! -d "$ANDROID_NDK_PATH" ]; then
-    echo "Downloading Android NDK ${NDK_VERSION}..."
-    curl -#L "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip" -o /tmp/android-ndk.zip
-    unzip -q /tmp/android-ndk.zip -d /tmp
-    rm -f /tmp/android-ndk.zip
-  fi
-fi
-[ -x "${ANDROID_NDK_PATH}/aarch64-linux-android21-clang" ] \
-  || { echo "error: NDK clang not found under ${ANDROID_NDK_PATH}"; exit 1; }
-export PATH="${ANDROID_NDK_PATH}:${PATH}"
+echo "Building tailscale v${TS_VERSION} for Android (linux/arm, linux/arm64, static)"
 
 # --- Source ---
 WORKDIR="$(mktemp -d)"
@@ -56,33 +44,19 @@ mkdir -p "$WORKDIR/src"
 tar -xzf "$WORKDIR/src.tar.gz" -C "$WORKDIR/src" --strip-components=1
 cd "$WORKDIR/src"
 
-# Carried patches (target: v1.104.x — drop once the fix lands upstream).
-# taildrop-android-fileops-nil.patch: upstream bug — on headless GOOS=android
-# builds `newFileOps` is never assigned (fileops_fs.go is !android; the
-# official Android app injects SAF FileOps via cgo). First successful login
-# hits the nil func var in onChangeProfile (ext.go:181) and the daemon
-# panics: "invalid memory address or nil pointer dereference" right after
-# authRoutine-success. The guard disables Taildrop (already non-functional
-# headless) instead of crashing.
-PATCHES_DIR="$SCRIPT_DIR/patches"
-if [ -d "$PATCHES_DIR" ]; then
-  for p in "$PATCHES_DIR"/*.patch; do
-    echo "Applying patch: $(basename "$p")"
-    patch -p1 --no-backup-if-mismatch < "$p"
-  done
-fi
-
-# NOTE: the ssh server feature is omitted on Android (official tailscale
-# excludes ssh/tailssh on android via `linux && !android`; the module does
-# not ship the mock `getent` it needs either). `tailscale ssh` client and
+# NOTE: the ssh server feature is omitted (feature tag below) — the module
+# does not ship the mock `getent` it needs. `tailscale ssh` client and
 # `tailscale up --ssh` advertising remain, the on-device SSH server does not.
+# (The old GOOS=android builds also needed taildrop-android-fileops-nil.patch
+# for a nil `newFileOps` panic — GOOS=linux compiles fileops_fs.go and has no
+# such bug, so no patches are applied anymore.)
 
 export GOFLAGS=-mod=mod
 export GOTOOLCHAIN=auto
 
 # Feature omissions copied from anasfanani/tailscale-android-cli scripts/android.sh,
-# plus `ssh` (see NOTE above — ssh/tailssh is android-excluded upstream)
-TAGS=$(GOOS= GOARCH= go run ./cmd/featuretags \
+# plus `ssh` (see NOTE above)
+TAGS=$(go run ./cmd/featuretags \
   --remove "aws,bird,tap,kube,completion,completion_scripts,wakeonlan,capture,systray,syspolicy,appconnectors,identityfederation,usermetrics,logtail,netlog,linuxdnsfight,tpm,ssh" \
   --add cli)
 echo "Build tags: $TAGS"
@@ -91,30 +65,37 @@ LDFLAGS="-X tailscale.com/version.longStamp=${TS_VERSION} -X tailscale.com/versi
 mkdir -p "$SCRIPT_DIR/../../$OUT_DIR"
 
 build_arch() {
-  local GOARCH=$1 CC=$2
-  echo "Building tailscaled + tailscale CLI for ${GOARCH}..."
-  GOOS=android GOARCH=$GOARCH CGO_ENABLED=1 CC=$CC CXX="${CC}++" \
-    go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
-    -o "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH" ./cmd/tailscaled
-  GOOS=android GOARCH=$GOARCH CGO_ENABLED=1 CC=$CC CXX="${CC}++" \
-    go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
-    -o "$SCRIPT_DIR/../../$OUT_DIR/tailscale.$GOARCH" ./cmd/tailscale
+  local GOARCH=$1
+  echo "Building tailscaled + tailscale CLI for linux/${GOARCH} (static)..."
+  if [ "$GOARCH" = "arm" ]; then
+    GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 \
+      go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
+      -o "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH" ./cmd/tailscaled
+    GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 \
+      go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
+      -o "$SCRIPT_DIR/../../$OUT_DIR/tailscale.$GOARCH" ./cmd/tailscale
+  else
+    GOOS=linux GOARCH="$GOARCH" CGO_ENABLED=0 \
+      go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
+      -o "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH" ./cmd/tailscaled
+    GOOS=linux GOARCH="$GOARCH" CGO_ENABLED=0 \
+      go build -tags="$TAGS" -ldflags="$LDFLAGS" -trimpath \
+      -o "$SCRIPT_DIR/../../$OUT_DIR/tailscale.$GOARCH" ./cmd/tailscale
+  fi
   chmod +x "$SCRIPT_DIR/../../$OUT_DIR/tailscaled.$GOARCH" \
            "$SCRIPT_DIR/../../$OUT_DIR/tailscale.$GOARCH"
 }
 
-# GOARCH=arm  -> binary suffix .arm,  NDK clang armv7a
-# GOARCH=arm64 -> binary suffix .arm64, NDK clang aarch64
-build_arch arm  armv7a-linux-androideabi21-clang
-build_arch arm64 aarch64-linux-android21-clang
+# GOARCH=arm  -> binary suffix .arm
+# GOARCH=arm64 -> binary suffix .arm64
+build_arch arm
+build_arch arm64
 
 cd "$SCRIPT_DIR/../.."
 echo "Packaging tgz archives..."
 # Each tgz ships THREE files:
-#   tailscaled    - the daemon. Official tailscale source has NO Android
-#                   default paths (upstream anasfanani fork baked them in),
-#                   so settings.sh passes --statedir/--socket explicitly.
-#   tailscale.bin - the tailscale CLI (official source, no multicall).
+#   tailscaled    - the daemon (static, linux GOOS -> real TUN + netlink router)
+#   tailscale.bin - the tailscale CLI
 #   tailscale     - tiny sh wrapper routing the CLI to the module socket;
 #                   the CLI's default socket (/var/run/tailscale/...) does
 #                   not exist on Android.

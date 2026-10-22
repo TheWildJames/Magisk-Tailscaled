@@ -55,18 +55,19 @@ On plain Magisk (no WebUI support) use `su -c tailscaled.service start|stop` ins
 ## Limitation
 
 - This module only supports `arm` or `arm64` architecture; you can download manually for other architectures.
-- Tailscale binary is designed to run in a Linux environment — some features might not work properly.
-- MagicDNS currently not working.
-- Runs in userspace mode — read more at [https://tailscale.com/kb/1112/userspace-networking](https://tailscale.com/kb/1112/userspace-networking)
-- Subnet routes are manually routed with socks5-tun; you must define your own IP routes in `tailscaled.tun.up` and `tailscaled.tun.down`.
+- The daemon runs as a root process (no VpnService), so it shows up in the Tailscale admin console as a Linux device.
+- MagicDNS names don't resolve system-wide (Android manages DNS via netd and `/etc` is read-only) — use tailnet IPs, or the daemon's own resolution.
+- Exit-node use and advertised subnet routes are reachable; full-tunnel policy routing for all phone traffic is not configured by this module.
 
 ## Usage of this module
 
 This module runs `tailscaled` with the following command:
 
 ```bash
-tailscaled --tun=userspace-networking --statedir=/data/adb/tailscale --socket=/data/adb/tailscale/run/tailscaled.sock --port=41641 -no-logs-no-support
+tailscaled --tun=tailscale0 --statedir=/data/adb/tailscale --socket=/data/adb/tailscale/run/tailscaled.sock --port=41641 -no-logs-no-support
 ```
+
+The daemon drives a real kernel TUN device (`tailscale0`) and installs Android policy-routing rules (priority 9000 for `100.64.0.0/10` and `fd7a:115c:a1e0::/48` → main table), so **apps on the phone reach tailnet IPs directly** — no official Tailscale app, no SOCKS proxy needed. Set `TS_TUN=userspace-networking` in `tailscale/settings.sh` to fall back to daemon-only reachability; if TUN mode fails to start, the service falls back automatically.
 
 The state file for tailscaled is stored at `/data/adb/tailscale/tailscaled.state`, and the log output is written to `/data/adb/tailscale/run/tailscaled.log`. The `tailscale` command is a small wrapper that points the CLI at the module's socket (`tailscale.bin` is the real CLI binary).
 
@@ -75,7 +76,6 @@ The state file for tailscaled is stored at `/data/adb/tailscale/tailscaled.state
 - `tailscale`: Tailscale CLI operation.
 - `tailscaled`: Tailscaled daemon operation.
 - `tailscaled.service`: Manage the tailscaled service — start, stop, restart, view live logs.
-- `tailscaled.tun`: Manage the hev-socks5-tunnel.
 
 ## Example: SSH to Termux
 
@@ -128,21 +128,22 @@ Tailscale has many issues. Check them out [here](https://github.com/tailscale/ta
 
 ### Cannot access other tailnet devices
 
-This module runs `tailscaled` in userspace-networking mode. To access other devices in the tailnet, use a local proxy on port 1099. A workaround using `hev-socks5-tunnel` tunnels local socks5 on port 1099 and binds it to the interface named `tailscale0`.
+The module runs `tailscaled` with a real kernel TUN (`--tun=tailscale0`), so apps reach tailnet IPs directly. If something doesn't connect:
 
 1. Verify `tailscaled.service` is running: `tailscaled.service restart`
-2. Verify `tailscaled.tun` is running: `tailscaled.tun restart`
-3. Check connectivity: `tailscale ping <tailnet_ip>`
-4. Check the local socks5 server: `curl 1.1.1.1 -vI -x localhost:1099`
-5. Check tailnet access: `curl <tailnet_ip>:<port> -vI -x localhost:1099`
+2. Verify the TUN device exists: `ip link show tailscale0`
+3. Verify the policy rules exist: `ip rule | grep 9000`
+4. Check connectivity: `tailscale ping <tailnet_ip>`, then `curl <tailnet_ip>:<port> -vI`
+
+If the daemon fell back to userspace-networking (check `/data/adb/tailscale/run/tailscaled.log` for `falling back to userspace-networking`), apps cannot route into the tailnet — check `/dev/net/tun` exists and rerun `tailscaled.service restart`.
 
 ### Subnet routes not working
 
-You need to define routes with `iptables` in `tailscaled.tun.up` and `tailscaled.tun.down`. See [this issue reference](https://github.com/anasfanani/Magisk-Tailscaled/issues/17) for examples.
+Accepted subnet routes are installed by the daemon's Linux router into the main routing table; add policy rules for their ranges the same way the service does for the tailnet (see `ts_rules_up` in `tailscale/scripts/tailscaled.service`).
 
 ### Exit nodes
 
-See [this issue reference](https://github.com/anasfanani/Magisk-Tailscaled/issues/17).
+Exit-node routing for all phone traffic is not configured by this module's policy rules (only the tailnet ranges). Advertised exit nodes still appear in the WebUI and can be selected with `tailscale set --exit-node=<ip>`.
 
 ### Headscale
 

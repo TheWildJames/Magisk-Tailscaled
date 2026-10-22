@@ -142,15 +142,42 @@ program(){
 _tailscaled(){
   logdir="${TS_DIR}/run"
   command="${TS_DAEMON_CMD}"
+  ts_rules_clean(){
+    # Remove stale policy rules from an unclean shutdown (idempotent).
+    ip rule del to 100.64.0.0/10 lookup main priority 9000 2>/dev/null
+    ip rule del to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null
+    return 0
+  }
+  ts_rules_up(){
+    # Android policy routing: per-network rules (priority 12000+) shadow the
+    # main table for app sockets, so tailnet destinations would follow the
+    # default network and never reach the main-table route tailscaled
+    # installs. Higher-priority rules steer CGNAT tailnet traffic into the
+    # main table -> tailscale0. Skipped in userspace mode (no TUN).
+    [ "$TS_TUN" = "userspace-networking" ] && return 0
+    ts_rules_clean
+    if ip rule add to 100.64.0.0/10 lookup main priority 9000 2>/dev/null; then
+      log Info "✔ policy rule: 100.64.0.0/10 -> main (tailscale0)."
+    fi
+    if ip rule add to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null; then
+      log Info "✔ policy rule: fd7a:115c:a1e0::/48 -> main (tailscale0)."
+    fi
+    return 0
+  }
+  ts_rules_down(){
+    [ "$TS_TUN" = "userspace-networking" ] && return 0
+    ts_rules_clean
+    return 0
+  }
   tailscaled_up(){
     sed -Ei "s/^description=(\[.*][[:space:]]*)?/description=[ ⏲ $CURRENT_TIME | ✔ tailscaled service is running!!! ] /g" "$TS_MOD_PROP"
   }
   tailscaled_down(){
     sed -Ei "s/^description=(\[.*][[:space:]]*)?/description=[ ⏲ $CURRENT_TIME | ✘ tailscaled shutting down, service is stopped !!! ] /g" "$TS_MOD_PROP"
   }
-  pre_up=""
-  pre_down=""
-  post_up="tailscaled_up"
+  pre_up="ts_rules_clean"
+  pre_down="ts_rules_down"
+  post_up="ts_rules_up"
   post_down="tailscaled_down"
   case "$1" in
     status)
@@ -158,8 +185,22 @@ _tailscaled(){
     ;;
     start)
       if ! program is_running && ! program start; then
-        log Warning "Got unfriendly response after start tailscaled !"
-        return 1
+        if [ "$TS_TUN" != "userspace-networking" ]; then
+          # The GOOS=linux daemon can only drive a real TUN; if that fails
+          # (missing /dev/tun, SELinux, old binary), degrade to userspace
+          # networking instead of leaving the phone with no daemon at all.
+          log Warning "TUN mode start failed — falling back to userspace-networking."
+          TS_TUN="userspace-networking"
+          # shellcheck disable=SC2295
+          TS_DAEMON_CMD="${TS_DAEMON_CMD/--tun=${TS_TUN}/--tun=userspace-networking}"
+          if ! program is_running && ! program start; then
+            log Warning "Got unfriendly response after start tailscaled !"
+            return 1
+          fi
+        else
+          log Warning "Got unfriendly response after start tailscaled !"
+          return 1
+        fi
       fi
       return 0
     ;;

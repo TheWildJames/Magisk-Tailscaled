@@ -1,3 +1,11 @@
+## v2.8.5.0
+
+- **System-wide VPN: real TUN mode** — the module now ships GOOS=linux static tailscaled binaries and runs `--tun=tailscale0`. The previous GOOS=android builds hard-exclude the Linux router (`creating router: unsupported OS android`), so the daemon could only run userspace networking — it connected, but apps on the phone had no route into the tailnet and the official Tailscale app was needed instead. Now apps reach tailnet IPs directly through `tailscale0`. The service also installs Android policy-routing rules (priority 9000, `100.64.0.0/10` + `fd7a:115c:a1e0::/48` → main table) because Android's per-network rules otherwise shadow the main-table route for app sockets; rules are removed on stop. If TUN mode fails to start, the service automatically falls back to userspace-networking (force it any time with `TS_TUN=userspace-networking` in `tailscale/settings.sh`).
+- **WebUI toggles stay put** — the Material switches are natively interactive: tapping one only flipped the local UI (the row handler deliberately ignored it), so no `tailscale set` ran and the next poll snapped the switch back. `change` handlers now apply the pref for real — Accept DNS / Accept routes / Advertise exit node / LAN access / Start on boot all stick.
+- **KernelSU boot-script structure** (per the KernelSU module guide) — daemon start moved to `boot-completed.sh` on KernelSU; `service.sh` keeps the Magisk-compatible wait-for-boot path and defers to `boot-completed.sh` when `$KSU` is set. No `post-fs-data.sh` — nothing in this module needs early-boot mounting (scripts and binaries live in `/data/adb/tailscale`, not a system overlay).
+- **Build pipeline** — `build-tailscale-android.sh` now produces static `GOOS=linux CGO_ENABLED=0` binaries (arm + arm64); the Android NDK step is removed from the release workflow and the android-only Taildrop nil-guard patch is no longer applied (bug is android-GOOS-specific).
+- **Version sync** — module.prop, update.json, update-arm.json, update-arm64.json all at v2.8.5.0.
+
 ## v2.8.4.0
 
 - **Settings persist across reboots** — `doConnect` now reads stored prefs and passes them as explicit flags to `tailscale up` instead of running bare `tailscale up` (which resets to defaults). Your Accept DNS / Accept routes / Advertise exit node / LAN access settings survive a reboot.

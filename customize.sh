@@ -112,6 +112,7 @@ set_perm_recursive "$TS_BIN_DIR/" 0 0 0755 0755 "u:object_r:system_file:s0"
 set_perm_recursive "$TS_SCRIPTS_DIR/" 0 0 0755 0755 "u:object_r:system_file:s0"
 set_perm_recursive "$MODPATH/system/bin/" 0 0 0755 0755 "u:object_r:system_file:s0"
 set_perm "$MODPATH/service.sh" 0 0 0755 "u:object_r:system_file:s0"
+set_perm "$MODPATH/boot-completed.sh" 0 0 0755 "u:object_r:system_file:s0"
 
 if [ ! -f "$SERVICE_DIR/tailscaled_service.sh" ]; then
 	# offer to move module scripts to general scripts

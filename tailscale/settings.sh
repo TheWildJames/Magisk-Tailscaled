@@ -22,11 +22,19 @@ mkdir -p "$TS_RUN_DIR" 2>/dev/null || true
 # Official-source binaries have NO Android default paths (upstream
 # anasfanani fork baked --statedir/--socket into its binary; ours does not),
 # so they are passed explicitly:
-#   userspace networking  - no kernel TUN on Android
-#   statedir              - state file lives beside module data (survives updates)
-#   socket                - module run dir (CLI wrapper uses the same path)
+#   tun        - real kernel TUN ("tailscale0"). The module ships GOOS=linux
+#                static builds on purpose: GOOS=android builds hard-exclude
+#                the Linux router ("creating router: unsupported OS android")
+#                and can only do userspace networking, which apps on the
+#                phone cannot route into. With a real TUN, apps reach
+#                tailnet IPs directly. Set TS_TUN=userspace-networking to
+#                fall back to daemon-only reachability (no app traffic).
+#   statedir   - state file lives beside module data (survives updates)
+#   socket     - module run dir (CLI wrapper uses the same path)
+export TS_TUN="${TS_TUN:-tailscale0}"
 export TS_SOCKET="${TS_RUN_DIR}/tailscaled.sock"
-export TS_DAEMON_CMD="tailscaled --tun=userspace-networking --statedir=${TS_DIR} --socket=${TS_SOCKET} --port=41641 -no-logs-no-support"
+# shellcheck disable=SC2153
+export TS_DAEMON_CMD="tailscaled --tun=${TS_TUN} --statedir=${TS_DIR} --socket=${TS_SOCKET} --port=41641 -no-logs-no-support"
 
 # Set tailscaled log variables
 export TS_LOG_FILE="${TS_RUN_DIR}/tailscaled.log"

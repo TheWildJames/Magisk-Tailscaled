@@ -61,16 +61,9 @@ jobs:
           go-version: 'stable'
           check-latest: true
 
-      - name: Set up Android NDK
-        id: ndk
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r27c
-          add-to-path: false
+      # No NDK needed: binaries are GOOS=linux CGO_ENABLED=0 (fully static)
 
       - name: Build
-        env:
-          ANDROID_NDK_PATH: ${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin
         run: ./.github/tools/build.sh
 
       - name: Create Release
