@@ -184,3 +184,11 @@ else
 	fi
 fi
 [ -n "${DEBUG:-}" ] && { set +ue; } || true
+
+# Ensure /etc/resolv.conf exists for tailscaled DNS resolution
+# (Android doesn't ship one — Go's resolver falls back to [::1]:53)
+if [ ! -f /etc/resolv.conf ]; then
+    mkdir -p /etc 2>/dev/null
+    printf "nameserver 8.8.8.8\nnameserver 8.8.4.4\n" > /etc/resolv.conf 2>/dev/null || \
+        echo "! Could not create /etc/resolv.conf — DNS may not work"
+fi

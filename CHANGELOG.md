@@ -1,3 +1,8 @@
+## v2.8.6.0
+
+- **DNS resolution fix** — Android has no `/etc/resolv.conf`, so Go's DNS resolver falls back to `[::1]:53` where nothing listens. tailscaled couldn't resolve `controlplane.tailscale.com` and every connection failed. Now: module overlay ships `system/etc/resolv.conf` (KernelSU/Magisk overlays it onto `/etc/`), `start.sh` bind-mounts it at runtime as a fallback, and `customize.sh` creates it during install.
+- **getent mock** — added `tailscale/bin/getent` so the daemon can resolve user info for Tailscale SSH (was throwing `exec: "getent": executable file not found`).
+
 ## v2.8.5.0
 
 - **Wait for network before daemon start** — service.sh and boot-completed.sh now wait up to 120s for a default route (WiFi/cellular) before starting tailscaled. Previously the daemon started before the interface was up and cached "network unreachable", so every connection to controlplane.tailscale.com failed until manually restarted.
