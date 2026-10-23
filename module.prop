@@ -1,7 +1,7 @@
 id=magisk-tailscaled
 name=Tailscale
-version=v2.8.8.0
-versionCode=02080800
+version=v2.8.9.0
+versionCode=02080900
 author=TheWildJames
 description=⚡ Tailscale
 updateJson=https://raw.githubusercontent.com/TheWildJames/Wild_Tailscale/main/update.json

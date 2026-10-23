@@ -34,7 +34,7 @@ mkdir -p "$TS_RUN_DIR" 2>/dev/null || true
 export TS_TUN="${TS_TUN:-tailscale0}"
 export TS_SOCKET="${TS_RUN_DIR}/tailscaled.sock"
 # shellcheck disable=SC2153
-export TS_DAEMON_CMD="tailscaled --tun=${TS_TUN} --statedir=${TS_DIR} --socket=${TS_SOCKET} --port=41641 -no-logs-no-support"
+export TS_DAEMON_CMD="tailscaled --tun=${TS_TUN} --statedir=${TS_DIR} --socket=${TS_SOCKET} --port=41641 --accept-dns=false -no-logs-no-support"
 
 # Set tailscaled log variables
 export TS_LOG_FILE="${TS_RUN_DIR}/tailscaled.log"
