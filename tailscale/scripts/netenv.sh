@@ -84,12 +84,16 @@ add_server() { # $1 = address; append once, max 3
 
 # --- DNS -------------------------------------------------------------------
 write_resolv() { # stdin = desired content
-    # Write the real target first: /etc is /system/etc, and KernelSU/Magisk
-    # usually leave that file writable. Only fall back to a bind mount when
-    # the filesystem really is read-only.
+    # /system is mounted read-only on Android. Try remounting rw first.
+    mount -o remount,rw /system 2>/dev/null || true
+    # Write the real target first: /etc is /system/etc.
     if cat >"$RESOLV_TARGET" 2>/dev/null; then
         return 0
     fi
+    # Fall back: create a mount point and bind-mount.
+    # /system/etc/resolv.conf may not exist — create an empty file first
+    # (requires rw remount which we attempted above).
+    touch "$RESOLV_TARGET" 2>/dev/null || true
     cat >"$RESOLV_STAGE" 2>/dev/null || return 1
     mount --bind "$RESOLV_STAGE" "$RESOLV_TARGET" 2>/dev/null && return 0
     return 1

@@ -146,9 +146,9 @@ _tailscaled(){
   command="${TS_DAEMON_CMD}"
   ts_rules_clean(){
     # Remove stale policy rules / shadow route from an unclean shutdown (idempotent).
-    ip rule del to 100.64.0.0/10 lookup main priority 9000 2>/dev/null
-    ip -6 rule del to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null
-    ip route del default metric 4096 table main 2>/dev/null
+    ip rule del to 100.64.0.0/10 lookup main priority 9000 2>/dev/null || true
+    ip -6 rule del to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null || true
+    ip route del default metric 4096 table main 2>/dev/null || true
     return 0
   }
   ts_shadow_default(){
