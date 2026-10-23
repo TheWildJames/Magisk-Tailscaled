@@ -1,3 +1,10 @@
+## v2.8.7.0
+
+- **Android networking fix (netenv.sh)** — The real root cause of "network unreachable" on Android: netd keeps all default routes in per-network tables and never puts one in the stock tables. tailscaled's fwmark-escape rules (5210→main, 5230→default/table 253, 5250→unreachable) therefore find nothing and every daemon dial fails. `netenv.sh` mirrors Android's active-network DNS resolvers into /etc/resolv.conf (Go can't call netd's DnsResolver Binder API) and copies the physical default route into table 253, then installs a belt-and-braces rule. Runs at service start and every 15s to follow WiFi↔cellular switches. No more hardcoded 8.8.8.8.
+- **settings.sh sourced from /data/adb/tailscale fallback** — scripts now find settings.sh whether run from the module dir or the installed data dir.
+- **Official Tailscale app conflict warning** — logs a clear warning if com.tailscale.ipn holds the VPN, since two TUNs can't coexist.
+- **zip -y flag** — preserves symlinks in the module zip (KernelSU overlay correctness).
+
 ## v2.8.6.0
 
 - **DNS resolution fix** — Android has no `/etc/resolv.conf`, so Go's DNS resolver falls back to `[::1]:53` where nothing listens. tailscaled couldn't resolve `controlplane.tailscale.com` and every connection failed. Now: module overlay ships `system/etc/resolv.conf` (KernelSU/Magisk overlays it onto `/etc/`), `start.sh` bind-mounts it at runtime as a fallback, and `customize.sh` creates it during install.

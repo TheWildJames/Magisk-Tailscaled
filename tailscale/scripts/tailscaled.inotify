@@ -1,7 +1,9 @@
 #!/system/bin/sh
 DIR=$(dirname "$(realpath "$0")")
 # shellcheck source=../settings.sh
-. "$DIR"/../settings.sh
+S="$DIR/../settings.sh"
+[ -f "$S" ] || S="/data/adb/tailscale/settings.sh"
+. "$S"
 
 events="$1"
 # monitor_dir="$2"

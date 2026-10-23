@@ -29,7 +29,9 @@
 set -e
 DIR=$(dirname "$(realpath "$0")")
 # shellcheck source=../settings.sh
-. "$DIR"/../settings.sh
+S="$DIR/../settings.sh"
+[ -f "$S" ] || S="/data/adb/tailscale/settings.sh"
+. "$S"
 scripts_name=$(basename "$0")
 
 program(){
@@ -150,19 +152,12 @@ _tailscaled(){
     return 0
   }
   ts_shadow_default(){
-    # tailscaled marks its own sockets with fwmark 0x80000 and escapes its
-    # own routing via rule 5210 "lookup main" — which assumes the MAIN table
-    # carries a default route. True on Linux, false on Android (netd keeps
-    # routes in per-network tables), so without a main-table default the
-    # daemon's control/DERP traffic hits its own "5250 unreachable" rule and
-    # it can never reach login.tailscale.com. Install a shadow default
-    # copied from the current default network; rule 5210 only matches
-    # fwmark 0x80000 sockets (the daemon itself), so nothing else changes.
-    local defroute
-    defroute=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.*\( via [0-9.]*\)\? dev \([^ ]*\) .*/\1 dev \2/p' | head -1)
-    [ -n "$defroute" ] || return 0
-    ip route replace default $defroute metric 4096 table main 2>/dev/null &&
-      log Info "✔ shadow default route in main table ($defroute) for daemon fwmark escape."
+    # tailscaled's fwmark escape (rule 5230) looks up table 253 ("default").
+    # Android keeps the real default in per-network tables, so table 253 is
+    # empty and the daemon's control/DERP dials hit rule 5250 "unreachable".
+    # netenv.sh owns the (idempotent) copy of the physical default; keep one
+    # implementation instead of two sed parsers.
+    [ -x "${TS_DIR}/scripts/netenv.sh" ] && "${TS_DIR}/scripts/netenv.sh" route
     return 0
   }
   ts_rules_up(){
@@ -203,6 +198,10 @@ _tailscaled(){
       program is_running
     ;;
     start)
+      # Android's DNS resolvers and the daemon's fwmark escape route must be
+      # current before the first dial — Mirrors netd state into resolv.conf
+      # and table main (see netenv.sh).
+      [ -x "${TS_DIR}/scripts/netenv.sh" ] && "${TS_DIR}/scripts/netenv.sh"
       if ! program is_running && ! program start; then
         if [ "$TS_TUN" != "userspace-networking" ]; then
           # The GOOS=linux daemon can only drive a real TUN; if that fails

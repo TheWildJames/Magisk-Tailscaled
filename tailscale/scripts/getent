@@ -1,0 +1,15 @@
+#!/system/bin/sh
+# Mock getent for Android — tailscaled calls this for user lookups.
+# Android doesn't have glibc's getent, so we provide a minimal version.
+case "$1" in
+    passwd)
+        if [ "$2" = "0" ] || [ "$2" = "root" ]; then
+            echo "root:x:0:0:root:/data/adb/tailscale:/system/bin/sh"
+        fi
+        ;;
+    group)
+        if [ "$2" = "0" ] || [ "$2" = "root" ]; then
+            echo "root:x:0:"
+        fi
+        ;;
+esac
