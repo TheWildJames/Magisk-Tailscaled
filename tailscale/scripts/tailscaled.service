@@ -143,9 +143,26 @@ _tailscaled(){
   logdir="${TS_DIR}/run"
   command="${TS_DAEMON_CMD}"
   ts_rules_clean(){
-    # Remove stale policy rules from an unclean shutdown (idempotent).
+    # Remove stale policy rules / shadow route from an unclean shutdown (idempotent).
     ip rule del to 100.64.0.0/10 lookup main priority 9000 2>/dev/null
-    ip rule del to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null
+    ip -6 rule del to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null
+    ip route del default metric 4096 table main 2>/dev/null
+    return 0
+  }
+  ts_shadow_default(){
+    # tailscaled marks its own sockets with fwmark 0x80000 and escapes its
+    # own routing via rule 5210 "lookup main" — which assumes the MAIN table
+    # carries a default route. True on Linux, false on Android (netd keeps
+    # routes in per-network tables), so without a main-table default the
+    # daemon's control/DERP traffic hits its own "5250 unreachable" rule and
+    # it can never reach login.tailscale.com. Install a shadow default
+    # copied from the current default network; rule 5210 only matches
+    # fwmark 0x80000 sockets (the daemon itself), so nothing else changes.
+    local defroute
+    defroute=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.*\( via [0-9.]*\)\? dev \([^ ]*\) .*/\1 dev \2/p' | head -1)
+    [ -n "$defroute" ] || return 0
+    ip route replace default $defroute metric 4096 table main 2>/dev/null &&
+      log Info "✔ shadow default route in main table ($defroute) for daemon fwmark escape."
     return 0
   }
   ts_rules_up(){
@@ -159,9 +176,11 @@ _tailscaled(){
     if ip rule add to 100.64.0.0/10 lookup main priority 9000 2>/dev/null; then
       log Info "✔ policy rule: 100.64.0.0/10 -> main (tailscale0)."
     fi
-    if ip rule add to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null; then
+    # NOTE: ip -6 rule — plain `ip rule add` rejects IPv6 destinations.
+    if ip -6 rule add to fd7a:115c:a1e0::/48 lookup main priority 9001 2>/dev/null; then
       log Info "✔ policy rule: fd7a:115c:a1e0::/48 -> main (tailscale0)."
     fi
+    ts_shadow_default
     return 0
   }
   ts_rules_down(){
