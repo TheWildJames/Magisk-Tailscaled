@@ -135,6 +135,28 @@ sync_route() { # $1 = iface, $2 = gw4, $3 = gw6
     ip -6 rule add pref "$MARK_RULE_PREF" fwmark 0x80000/0xff0000 lookup "$SHADOW_TABLE" 2>/dev/null
 }
 
+sync_magicdns() {
+    # Check if tailscaled is running (has a Tailscale IP)
+    local ts_ip
+    ts_ip=$( (tailscale ip -4 2>/dev/null || /data/adb/tailscale/scripts/tailscale ip -4 2>/dev/null) | head -1)
+    if [ -z "$ts_ip" ]; then
+        # tailscaled not running — remove redirect rules
+        iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null
+        iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null
+        return 0
+    fi
+
+    # tailscaled running — add redirect rules (idempotent: check first)
+    if ! iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null; then
+        iptables -t nat -A OUTPUT -p udp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null && \
+            log_msg "MagicDNS: redirecting UDP/53 -> 100.100.100.100"
+    fi
+    if ! iptables -t nat -C OUTPUT -p tcp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null; then
+        iptables -t nat -A OUTPUT -p tcp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null && \
+            log_msg "MagicDNS: redirecting TCP/53 -> 100.100.100.100"
+    fi
+}
+
 sync_netenv() {
     local netid iface dns_raw gw gw6 r4 r6 ip sig v4 v6
     v4=""
@@ -194,6 +216,12 @@ sync_netenv() {
     # rewrites resolv.conf to point at 100.100.100.100, which the daemon's own
     # marked queries cannot reach on Android. Self-heal on every pass.
     sync_dns "$netid" "$SERVERS"
+
+    # MagicDNS: redirect all DNS queries to tailscaled's proxy at 100.100.100.100
+    # so Android apps can resolve *.ts.net names. Uses iptables DNAT in OUTPUT
+    # (locally-generated traffic) and PREROUTING (forwarded traffic). Only active
+    # when tailscaled is running; removed when it stops.
+    sync_magicdns
 }
 
 case "$1" in
