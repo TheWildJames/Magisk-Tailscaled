@@ -173,6 +173,14 @@ sync_netenv() {
         add_server 8.8.8.8
     fi
 
+    # MagicDNS: tailscaled runs an internal DNS proxy on 100.100.100.100 that
+    # resolves tailnet hostnames (e.g. stinkdesk.tailnet-name.ts.net). Put it
+    # LAST so physical resolvers are tried first (fast, no timeout when the
+    # daemon is down) and MagicDNS only kicks in for *.ts.net / tailnet names.
+    if [ -S "${TS_SOCKET}" ] 2>/dev/null || pgrep -f tailscaled >/dev/null 2>&1; then
+        add_server 100.100.100.100
+    fi
+
     sig="net=${netid:-?} if=${iface:-?} gw=${gw:-?} gw6=${gw6:-?} dns=${SERVERS}"
 
     sync_route "$iface" "$gw" "$gw6"
