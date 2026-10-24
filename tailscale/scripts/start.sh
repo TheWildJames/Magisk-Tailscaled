@@ -34,6 +34,20 @@ start_netenv_watch() {
   echo $! > "$pidfile"
 }
 
+start_healthcheck() {
+  local pidfile="${TS_RUN_DIR}/healthcheck.pid"
+  if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    return 0
+  fi
+  (
+    while :; do
+      "${TS_DIR}/scripts/healthcheck.sh" 2>/dev/null
+      sleep 60
+    done
+  ) >>"${TS_RUN_DIR}/healthcheck.log" 2>&1 &
+  echo $! > "$pidfile"
+}
+
 module_version=$(busybox awk -F'=' '!/^ *#/ && /version=/ { print $2 }' "$TS_MOD_PROP" 2>/dev/null)
 log Info "Tailscale module version : ${module_version}."
 
@@ -53,3 +67,4 @@ fi
 start_service
 start_inotifyd
 start_netenv_watch
+start_healthcheck

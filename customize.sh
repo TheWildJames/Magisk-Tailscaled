@@ -51,6 +51,9 @@ TS_DIR="/data/adb/tailscale"
 TS_BIN_DIR="$TS_DIR/bin"
 TS_SCRIPTS_DIR="$TS_DIR/scripts"
 
+# Clean up old .bak files older than 7 days
+find "$TS_DIR" -type f -name '*.bak*' -mtime +7 -delete 2>/dev/null || true
+
 case $ARCH in
 arm) F_ARCH="armv7a" ;;
 arm64) F_ARCH="aarch64" ;;

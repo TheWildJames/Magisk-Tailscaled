@@ -36,7 +36,7 @@ S="$DIR/../settings.sh"
 . "$S"
 
 RESOLV_STAGE="${TS_DIR}/resolv.conf"
-RESOLV_TARGET="/system/etc/resolv.conf"
+RESOLV_TARGET="/etc/resolv.conf"
 SIG_FILE="${TS_RUN_DIR}/netenv.sig"
 DUMP="${TS_RUN_DIR}/connectivity.dump"
 NETENV_INTERVAL="${NETENV_INTERVAL:-15}"
@@ -142,7 +142,7 @@ sync_route() { # $1 = iface, $2 = gw4, $3 = gw6
 sync_magicdns() {
     # Check if tailscaled is running (has a Tailscale IP)
     local ts_ip
-    ts_ip=$( (tailscale ip -4 2>/dev/null || /data/adb/tailscale/scripts/tailscale ip -4 2>/dev/null) | head -1)
+    ts_ip=$( (/data/adb/tailscale/bin/tailscale ip -4 2>/dev/null || tailscale ip -4 2>/dev/null) | head -1)
     if [ -z "$ts_ip" ]; then
         # tailscaled not running — remove redirect rules
         iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null

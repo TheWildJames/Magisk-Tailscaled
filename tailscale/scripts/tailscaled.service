@@ -64,7 +64,19 @@ program(){
     log Info "Starting ${program_name} service."
     if is_running; then return 0; fi 
     if ! command -v "$program_name" > /dev/null 2>&1; then log Error "program not found: ${program_name}"; return 1; fi
-    [ -f "${log_file}" ] && mv "${log_file}" "${log_file}.bak" # log for old output
+    # Rotate logs before starting: keep last 5, max 10MB each
+    if [ -f "${log_file}" ]; then
+      # drop oldest
+      rm -f "${log_file}.5" 2>/dev/null || true
+      i=4
+      while [ "$i" -ge 1 ]; do
+        [ -f "${log_file}.${i}" ] && mv -f "${log_file}.${i}" "${log_file}.$((i+1))" 2>/dev/null || true
+        i=$((i-1))
+      done
+      mv -f "${log_file}" "${log_file}.1" 2>/dev/null || true
+    fi
+    # Clean up old .bak files older than 7 days
+    find "${TS_RUN_DIR}" -type f -name '*.bak*' -mtime +7 -delete 2>/dev/null || true
     if [ ! -z "${pre_up}" ];then $pre_up  2>&1; fi
     # shellcheck disable=SC2086
     nohup $command > "${logdir}/${program_name}.log" 2>&1 &
