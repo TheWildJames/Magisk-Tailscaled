@@ -92,7 +92,8 @@ function poll() {
     'echo @@M3; tailscale status --json 2>/dev/null; ' +
     'echo @@M4; tailscale debug prefs --json 2>/dev/null; ' +
     'echo @@M5; [ -e /data/adb/tailscale/NOBOOT ] && echo NB || echo OK; ' +
-    'echo @@M6';
+    'echo @@M6; /data/adb/tailscale/scripts/magicdns.sh status 2>/dev/null; ' +
+    'echo @@M7';
   return exec(cmd, 20000).then(function (r) {
     var out = String(r.stdout);
     function between(a, b) {
@@ -104,12 +105,14 @@ function poll() {
     var statusStr = between('M3', 'M4');
     var prefsStr = between('M4', 'M5');
     var bootStr = between('M5', 'M6');
+    var magicStr = between('M6', 'M7');
 
     if (ver) { pollVersion = ver; }
     try { S.status = statusStr ? JSON.parse(statusStr) : null; } catch (e) { S.status = null; }
     S.daemonUp = !!S.status;
     try { S.prefs = prefsStr ? JSON.parse(prefsStr) : null; } catch (e) { S.prefs = null; }
     S.bootOn = bootStr !== 'NB';
+    S.magicDnsOn = /ON/.test(magicStr);
 
     render();
   }).catch(function () { render(); });
@@ -196,7 +199,7 @@ function render() {
   /* settings switches */
   setSwitch('sw-boot', S.bootOn);
   if (!S.busy) {
-    setSwitch('sw-dns', S.prefs ? !!S.prefs.CorpDNS : false);
+    setSwitch('sw-dns', S.magicDnsOn === true);
     setSwitch('sw-routes', S.prefs ? !!S.prefs.RouteAll : false);
     setSwitch('sw-exit-adv', S.prefs ? (String(S.prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) : false);
     setSwitch('sw-lan', S.prefs ? !!S.prefs.ExitNodeAllowLANAccess : false);
@@ -479,7 +482,34 @@ function wire() {
     catch (err) { snack(ip); }
   });
   $('row-boot').addEventListener('click', toggleBoot);
-  var prefRows = { 'row-dns': '--accept-dns', 'row-routes': '--accept-routes', 'row-exit-adv': '--advertise-exit-node', 'row-lan': '--exit-node-allow-lan-access' };
+  /* MagicDNS toggle: controls iptables DNAT rules via magicdns.sh */
+  (function () {
+    var row = $('row-dns'), sw = $('sw-dns');
+    if (row) row.addEventListener('click', function (e) {
+      if (e.target.closest('md-switch')) return;
+      var current = S.magicDnsOn === true;
+      toggleMagicDns(!current);
+    });
+    if (sw) sw.addEventListener('change', function () {
+      if (S.busy) { render(); return; }
+      toggleMagicDns(!!sw.selected);
+    });
+  })();
+  function toggleMagicDns(on) {
+    if (S.busy) return;
+    if (!S.daemonUp) { snack('Start Tailscale first'); return; }
+    setBusy('Applying…');
+    setTimeout(function () {
+      exec(ENV + 'tailscale/scripts/magicdns.sh ' + (on ? 'on' : 'off') + ' 2>&1; echo RC=$?', 20000)
+        .then(function (r) {
+          clearBusy();
+          S.magicDnsOn = on;
+          snack(on ? 'MagicDNS on' : 'MagicDNS off');
+          poll();
+        });
+    }, 0);
+  }
+  var prefRows = { 'row-routes': '--accept-routes', 'row-exit-adv': '--advertise-exit-node', 'row-lan': '--exit-node-allow-lan-access' };
   Object.keys(prefRows).forEach(function (rowId) {
     $(rowId).addEventListener('click', function (e) {
       if (e.target.closest('md-switch')) return;
@@ -495,7 +525,7 @@ function wire() {
      only the local visual state and fires `change` (the row click above
      deliberately ignores it). Without a change handler nothing was applied
      and the next poll snapped the switch back to the old value. */
-  var swFlags = { 'sw-dns': '--accept-dns', 'sw-routes': '--accept-routes', 'sw-exit-adv': '--advertise-exit-node', 'sw-lan': '--exit-node-allow-lan-access' };
+  var swFlags = { 'sw-routes': '--accept-routes', 'sw-exit-adv': '--advertise-exit-node', 'sw-lan': '--exit-node-allow-lan-access' };
   Object.keys(swFlags).forEach(function (swId) {
     var el = $(swId);
     if (!el) return;
