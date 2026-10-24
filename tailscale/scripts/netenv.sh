@@ -135,8 +135,8 @@ sync_route() { # $1 = iface, $2 = gw4, $3 = gw6
 
     # Keep an escape rule of our own: harmless duplicate when tailscaled's
     # 5230 exists, the only thing keeping control alive if it does not.
-    ip rule add pref "$MARK_RULE_PREF" fwmark 0x80000/0xff0000 lookup "$SHADOW_TABLE" 2>/dev/null
-    ip -6 rule add pref "$MARK_RULE_PREF" fwmark 0x80000/0xff0000 lookup "$SHADOW_TABLE" 2>/dev/null
+    ip rule add pref "$MARK_RULE_PREF" fwmark 0x80000/0xff0000 lookup "$SHADOW_TABLE" 2>/dev/null || true
+    ip -6 rule add pref "$MARK_RULE_PREF" fwmark 0x80000/0xff0000 lookup "$SHADOW_TABLE" 2>/dev/null || true
 }
 
 sync_magicdns() {
@@ -145,8 +145,8 @@ sync_magicdns() {
     ts_ip=$( (/data/adb/tailscale/bin/tailscale ip -4 2>/dev/null || tailscale ip -4 2>/dev/null) | head -1)
     if [ -z "$ts_ip" ]; then
         # tailscaled not running — remove redirect rules
-        iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null
-        iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null
+        iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null || true
+        iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination 100.100.100.100:53 2>/dev/null || true
         return 0
     fi
 
