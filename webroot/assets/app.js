@@ -274,7 +274,7 @@ function doConnect() {
   /* Build tailscale up flags from stored prefs so settings persist
      across reboots — bare `tailscale up` resets to defaults. */
   var prefs = S.prefs || {};
-  var dns = prefs.CorpDNS !== false ? 'true' : 'false';
+  var dns = prefs.CorpDNS === true ? 'true' : 'false';
   var routes = prefs.RouteAll === true ? 'true' : 'false';
   var exitAdv = (String(prefs.AdvertiseRoutes || '').indexOf('0.0.0.0/0') !== -1) ? 'true' : 'false';
   var lan = prefs.ExitNodeAllowLANAccess === true ? 'true' : 'false';

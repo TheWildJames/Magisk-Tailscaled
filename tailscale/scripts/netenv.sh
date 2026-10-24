@@ -42,6 +42,7 @@ DUMP="${TS_RUN_DIR}/connectivity.dump"
 NETENV_INTERVAL="${NETENV_INTERVAL:-15}"
 SHADOW_TABLE=253       # numeric on purpose: Android's rt_tables has no "default" alias
 MARK_RULE_PREF=5240    # belt-and-braces rule for fwmark 0x80000
+TAILNET_RULE_PREF=9002 # ahead of netd's per-network rules (11000/15040/31000)
 
 log_msg() {
     printf '%s\n' "$*" >&2
@@ -139,6 +140,31 @@ sync_route() { # $1 = iface, $2 = gw4, $3 = gw6
     ip -6 rule add pref "$MARK_RULE_PREF" fwmark 0x80000/0xff0000 lookup "$SHADOW_TABLE" 2>/dev/null || true
 }
 
+# tailscaled parks its tailnet routes in its own table (52 by default) and
+# reaches them through `5270: from all lookup 52`. netd's per-network rules
+# (15040/31000, keyed on the app fwmark) are consulted for anything that falls
+# through, so a DNS packet DNAT'd to 100.100.100.100 ends up in the wlan0 table
+# and dies with ENETUNREACH. Pin tailnet destinations to tailscaled's table
+# ahead of netd's rules instead of relying on rule order.
+tailnet_table() {
+    local t
+    t=$(ip route show table all 2>/dev/null |
+        sed -n 's/^100\.100\.100\.100 dev [^ ]* table \([0-9][0-9]*\).*/\1/p' |
+        head -1)
+    printf '%s' "${t:-52}"
+}
+
+install_tailnet_rules() {
+    local t
+    t=$(tailnet_table)
+    ip rule add pref "$TAILNET_RULE_PREF" to 100.100.100.100 lookup "$t" 2>/dev/null || true
+    ip rule add pref "$((TAILNET_RULE_PREF + 1))" to 100.64.0.0/10 lookup "$t" 2>/dev/null || true
+    ip -6 rule add pref "$TAILNET_RULE_PREF" to fd7a:115c:a1e0::/48 lookup "$t" 2>/dev/null || true
+    # Older builds steered these at `main`, where the routes never exist.
+    ip rule del pref 9000 2>/dev/null || true
+    ip rule del pref 9001 2>/dev/null || true
+}
+
 sync_magicdns() {
     # Check if tailscaled is running (has a Tailscale IP)
     local ts_ip
@@ -210,6 +236,7 @@ sync_netenv() {
     sig="net=${netid:-?} if=${iface:-?} gw=${gw:-?} gw6=${gw6:-?} dns=${SERVERS}"
 
     sync_route "$iface" "$gw" "$gw6"
+    install_tailnet_rules
 
     if [ "$(cat "$SIG_FILE" 2>/dev/null)" != "$sig" ]; then
         printf '%s\n' "$sig" >"$SIG_FILE"
@@ -236,6 +263,7 @@ case "$1" in
         r6=$(ip -6 route get 2606:4700:4700::1111 2>/dev/null | head -1)
         gw6=$(printf '%s\n' "$r6" | sed -n 's/.* via \([0-9a-fA-F:]*\).*/\1/p')
         sync_route "$iface" "$gw" "$gw6"
+        install_tailnet_rules
         ;;
     watch)
         while :; do

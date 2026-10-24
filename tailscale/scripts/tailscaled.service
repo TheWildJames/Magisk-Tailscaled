@@ -60,6 +60,28 @@ program(){
     fi
     return 1
   }
+  # tailscaled's Linux DNS manager rewrites /etc/resolv.conf (plus an adjacent
+  # backup file) to point clients at quad-100. /system is read-only, so the
+  # write fails and the daemon reports a permanent "failed to set the DNS
+  # configuration" health warning even though everything else works. Give
+  # tailscaled a private copy of /etc, bind-mounted inside its own mount
+  # namespace: the write lands in /data, no other process sees it, and /system
+  # is never touched.
+  private_etc(){
+    TS_ETC_COPY="${TS_DIR}/etc"
+    TS_LAUNCH="$command"
+    busybox unshare -m true >/dev/null 2>&1 || return 1
+    etc_ver=$(busybox awk -F= '/^version=/{print $2}' "${TS_MOD_PROP}" 2>/dev/null)
+    if [ ! -f "${TS_ETC_COPY}/hosts" ] || [ "$(cat "${TS_ETC_COPY}/.version" 2>/dev/null)" != "$etc_ver" ]; then
+      rm -rf "$TS_ETC_COPY" 2>/dev/null
+      mkdir -p "$TS_ETC_COPY" 2>/dev/null || return 1
+      cp -a /system/etc/. "$TS_ETC_COPY"/ 2>/dev/null
+      if [ ! -f "${TS_ETC_COPY}/hosts" ]; then rm -rf "$TS_ETC_COPY" 2>/dev/null; return 1; fi
+      echo "$etc_ver" > "${TS_ETC_COPY}/.version"
+    fi
+    TS_LAUNCH="busybox unshare -m sh -c 'mount --bind ${TS_ETC_COPY} /system/etc 2>/dev/null; exec ${command}'"
+    return 0
+  }
   start(){
     log Info "Starting ${program_name} service."
     if is_running; then return 0; fi 
@@ -78,8 +100,9 @@ program(){
     # Clean up old .bak files older than 7 days
     find "${TS_RUN_DIR}" -type f -name '*.bak*' -mtime +7 -delete 2>/dev/null || true
     if [ ! -z "${pre_up}" ];then $pre_up  2>&1; fi
+    private_etc 2>/dev/null || TS_LAUNCH="$command"
     # shellcheck disable=SC2086
-    nohup $command > "${logdir}/${program_name}.log" 2>&1 &
+    nohup sh -c "$TS_LAUNCH" > "${logdir}/${program_name}.log" 2>&1 &
     PID=$!
     # log Debug "Command: ${command}"
     sleep 3 # waiting for program really started
